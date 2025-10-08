@@ -40,9 +40,14 @@ class SkpdController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', 'unique:skpds,name'],
             'alias' => ['nullable', 'string', 'max:255'],
+            'npwp' => ['nullable', 'string', 'max:25'],
         ]);
 
-        Skpd::create($validated);
+        $payload = array_merge($validated, [
+            'npwp' => $request->filled('npwp') ? trim((string) $request->input('npwp')) : null,
+        ]);
+
+        Skpd::create($payload);
 
         return redirect()->route('skpds.index')->with('status', 'SKPD berhasil ditambahkan.');
     }
@@ -57,11 +62,52 @@ class SkpdController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', "unique:skpds,name,{$skpd->id}"],
             'alias' => ['nullable', 'string', 'max:255'],
+            'npwp' => ['nullable', 'string', 'max:25'],
         ]);
 
-        $skpd->update($validated);
+        $payload = array_merge($validated, [
+            'npwp' => $request->filled('npwp') ? trim((string) $request->input('npwp')) : null,
+        ]);
+
+        $skpd->update($payload);
 
         return redirect()->route('skpds.index')->with('status', 'SKPD berhasil diperbarui.');
+    }
+
+    public function profile(Request $request): View
+    {
+        $user = $request->user();
+        abort_unless($user->isSuperAdmin() || $user->isAdminUnit(), 403);
+
+        $skpd = $user->loadMissing('skpd')->skpd;
+        abort_if($skpd === null, 404);
+
+        return view('skpds.profile', [
+            'skpd' => $skpd,
+        ]);
+    }
+
+    public function updateProfile(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->isSuperAdmin() || $user->isAdminUnit(), 403);
+
+        $skpd = $user->loadMissing('skpd')->skpd;
+        abort_if($skpd === null, 404);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255', "unique:skpds,name,{$skpd->id}"],
+            'alias' => ['nullable', 'string', 'max:255'],
+            'npwp' => ['nullable', 'string', 'max:25'],
+        ]);
+
+        $payload = array_merge($validated, [
+            'npwp' => $request->filled('npwp') ? trim((string) $request->input('npwp')) : null,
+        ]);
+
+        $skpd->update($payload);
+
+        return redirect()->route('skpds.profile')->with('status', 'Profil instansi berhasil diperbarui.');
     }
 
     public function destroy(Skpd $skpd): RedirectResponse
@@ -77,5 +123,6 @@ class SkpdController extends Controller
         return redirect()->route('skpds.index')->with('status', 'SKPD berhasil dihapus.');
     }
 }
+
 
 

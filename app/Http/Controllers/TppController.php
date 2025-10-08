@@ -5,9 +5,13 @@ namespace App\Http\Controllers;
 use App\Exports\TppExport;
 use App\Exports\TppTemplateExport;
 use App\Imports\TppImport;
+use App\Http\Controllers\Concerns\HandlesEbupot;
 use App\Models\Tpp;
+use App\Models\EbupotReport;
 use App\Models\Pegawai;
 use App\Models\User;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use App\Services\XlsxService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
@@ -21,6 +25,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TppController extends Controller
 {
+    use HandlesEbupot;
+
     private XlsxService $xlsxService;
 
     public function __construct(XlsxService $xlsxService)
@@ -39,12 +45,17 @@ class TppController extends Controller
             'tahun' => ['nullable', 'integer', 'min:2000', 'max:' . (date('Y') + 5)],
             'bulan' => ['nullable', 'integer', Rule::in(array_keys($monthOptions))],
             'per_page' => ['nullable', 'integer', Rule::in($perPageOptions)],
+            'search' => ['nullable', 'string', 'max:255'],
         ]);
 
         $selectedYear = array_key_exists('tahun', $validated) ? (int) $validated['tahun'] : null;
         $selectedMonth = array_key_exists('bulan', $validated) ? (int) $validated['bulan'] : null;
         $perPage = array_key_exists('per_page', $validated) ? (int) $validated['per_page'] : $perPageOptions[0];
         $filtersReady = $selectedYear !== null && $selectedMonth !== null;
+        $searchTerm = array_key_exists('search', $validated) ? trim((string) $validated['search']) : null;
+        if ($searchTerm === '') {
+            $searchTerm = null;
+        }
 
         $viewData = [
             'typeLabels' => $typeLabels,
@@ -53,6 +64,7 @@ class TppController extends Controller
             'selectedYear' => $selectedYear,
             'selectedMonth' => $selectedMonth,
             'filtersReady' => $filtersReady,
+            'searchTerm' => $searchTerm,
             'perPage' => $perPage,
             'perPageOptions' => $perPageOptions,
             'allowanceFields' => $this->allowanceFields(),
@@ -69,6 +81,15 @@ class TppController extends Controller
                 ->when(! $currentUser->isSuperAdmin(), function ($query) use ($currentUser) {
                     $query->whereHas('pegawai', function ($sub) use ($currentUser) {
                         $sub->where('skpd_id', $currentUser->skpd_id);
+                    });
+                })
+                ->when($searchTerm !== null, function ($query) use ($searchTerm) {
+                    $query->whereHas('pegawai', function ($pegawaiQuery) use ($searchTerm) {
+                        $search = '%' . $searchTerm . '%';
+                        $pegawaiQuery->where(function ($inner) use ($search) {
+                            $inner->where('nama_lengkap', 'like', $search)
+                                ->orWhere('nip', 'like', $search);
+                        });
                     });
                 });
 
@@ -107,7 +128,246 @@ class TppController extends Controller
 
         return view('tpps.index', $viewData);
     }
+    public function indexEbupot(Request $request): View
+    {
+        $currentUser = $request->user();
+        abort_unless($currentUser->isSuperAdmin() || $currentUser->isAdminUnit(), 403);
 
+        $typeLabels = $this->typeLabels();
+        $monthOptions = $this->monthOptions();
+
+        $validated = $request->validate([
+            'type' => ['nullable', 'string', Rule::in(array_keys($typeLabels))],
+            'tahun' => ['nullable', 'integer', 'min:2000', 'max:' . (date('Y') + 5)],
+            'bulan' => ['nullable', 'integer', Rule::in(array_keys($monthOptions))],
+        ]);
+
+        $query = EbupotReport::query()
+            ->where('source', 'tpp')
+            ->with(['user:id,name', 'skpd:id,name'])
+            ->when(! $currentUser->isSuperAdmin(), function ($builder) use ($currentUser) {
+                $builder->where('skpd_id', $currentUser->skpd_id);
+            });
+
+        if (array_key_exists('type', $validated) && $validated['type'] !== null) {
+            $query->where('jenis_asn', $this->resolveType($validated['type']));
+        }
+
+        if (array_key_exists('tahun', $validated) && $validated['tahun'] !== null) {
+            $query->where('tahun', (int) $validated['tahun']);
+        }
+
+        if (array_key_exists('bulan', $validated) && $validated['bulan'] !== null) {
+            $query->where('bulan', (int) $validated['bulan']);
+        }
+
+        $reports = $query
+            ->orderByDesc('tahun')
+            ->orderByDesc('bulan')
+            ->paginate(15)
+            ->withQueryString();
+
+        return view('tpps.ebupot.index', [
+            'typeLabels' => $typeLabels,
+            'monthOptions' => $monthOptions,
+            'filters' => [
+                'type' => $validated['type'] ?? null,
+                'tahun' => $validated['tahun'] ?? null,
+                'bulan' => $validated['bulan'] ?? null,
+            ],
+            'reports' => $reports,
+        ]);
+    }
+
+    public function createEbupot(Request $request): View
+    {
+        $currentUser = $request->user();
+        abort_unless($currentUser->isSuperAdmin() || $currentUser->isAdminUnit(), 403);
+
+        $typeLabels = $this->typeLabels();
+        $monthOptions = $this->monthOptions();
+
+        $validated = $request->validate([
+            'type' => ['required', 'string', Rule::in(array_keys($typeLabels))],
+            'tahun' => ['required', 'integer', 'min:2000', 'max:' . (date('Y') + 5)],
+            'bulan' => ['required', 'integer', Rule::in(array_keys($monthOptions))],
+        ]);
+
+        $selectedType = $this->resolveType($validated['type']);
+        $selectedYear = (int) $validated['tahun'];
+        $selectedMonth = (int) $validated['bulan'];
+
+        $currentUser->loadMissing('skpd');
+        $defaultNpwpPemotong = optional($currentUser->skpd)->npwp ?? '';
+        $defaultIdTku = $defaultNpwpPemotong !== '' ? $defaultNpwpPemotong . '000000' : '';
+        $defaultKodeObjek = '21-100-01';
+        $normalizedMonth = max(1, min(12, $selectedMonth));
+        $defaultCutOffDate = Carbon::create($selectedYear, $normalizedMonth, 1)->endOfMonth()->format('Y-m-d');
+
+        $entries = $this->prepareEbupotEntries(
+            $currentUser,
+            $selectedType,
+            $selectedYear,
+            $selectedMonth,
+            $defaultNpwpPemotong,
+            $defaultIdTku,
+            $defaultKodeObjek,
+            $defaultCutOffDate
+        );
+
+        return view('tpps.ebupot.create', [
+            'typeLabels' => $typeLabels,
+            'monthOptions' => $monthOptions,
+            'defaultNpwpPemotong' => $defaultNpwpPemotong,
+            'defaultIdTku' => $defaultIdTku,
+            'defaultKodeObjek' => $defaultKodeObjek,
+            'selectedType' => $selectedType,
+            'selectedYear' => $selectedYear,
+            'selectedMonth' => $selectedMonth,
+            'prefilledEntries' => $entries,
+        ]);
+    }
+
+    public function storeEbupot(Request $request): StreamedResponse
+    {
+        $currentUser = $request->user();
+        abort_unless($currentUser->isSuperAdmin() || $currentUser->isAdminUnit(), 403);
+
+        $typeLabels = $this->typeLabels();
+        $monthOptions = $this->monthOptions();
+
+        $validated = $request->validate([
+            'type' => ['required', 'string', Rule::in(array_keys($typeLabels))],
+            'tahun' => ['required', 'integer', 'min:2000', 'max:' . (date('Y') + 5)],
+            'bulan' => ['required', 'integer', Rule::in(array_keys($monthOptions))],
+            'default_npwp_pemotong' => ['nullable', 'string', 'max:25'],
+            'default_id_tku' => ['nullable', 'string', 'max:50'],
+            'default_kode_objek' => ['nullable', 'string', 'max:20'],
+        ]);
+
+        $selectedType = $this->resolveType($validated['type']);
+        $selectedYear = (int) $validated['tahun'];
+        $selectedMonth = (int) $validated['bulan'];
+        $defaultTin = (string) $request->input('default_npwp_pemotong', '');
+        $defaultIdTku = (string) $request->input('default_id_tku', '');
+        $defaultKodeObjek = (string) $request->input('default_kode_objek', '21-100-01');
+        $defaultCutOff = Carbon::create($selectedYear, max(1, min(12, $selectedMonth)), 1)->endOfMonth()->format('Y-m-d');
+
+        $entries = $this->prepareEbupotEntries(
+            $currentUser,
+            $selectedType,
+            $selectedYear,
+            $selectedMonth,
+            $defaultTin,
+            $defaultIdTku,
+            $defaultKodeObjek,
+            $defaultCutOff
+        );
+
+        if ($entries->isEmpty()) {
+            throw ValidationException::withMessages([
+                'entries' => 'Data TPP untuk periode ini tidak tersedia.',
+            ]);
+        }
+
+        $report = $this->persistEbupotReport(
+            $currentUser,
+            $selectedType,
+            $selectedYear,
+            $selectedMonth,
+            $defaultTin,
+            $defaultIdTku,
+            $defaultKodeObjek,
+            $defaultCutOff,
+            $entries,
+            'tpp'
+        );
+
+        $exportType = strtolower((string) $request->input('export', 'xlsx'));
+
+        if ($exportType === 'xml') {
+            $xmlContent = $this->buildEbupotXml(
+                $entries,
+                $report->npwp_pemotong ?? '',
+                $selectedMonth,
+                $selectedYear
+            );
+            $xmlFilename = sprintf(
+                'ebupot-tpp-%s-%d-%s.xml',
+                $selectedType,
+                $selectedYear,
+                str_pad((string) $selectedMonth, 2, '0', STR_PAD_LEFT)
+            );
+
+            return response()->streamDownload(function () use ($xmlContent) {
+                echo $xmlContent;
+            }, $xmlFilename, [
+                'Content-Type' => 'application/xml',
+            ]);
+        }
+
+        $headings = $this->ebupotHeadings();
+        $rows = $this->mapEbupotRows($entries);
+
+        $filename = sprintf(
+            'ebupot-tpp-%s-%d-%s.xlsx',
+            $selectedType,
+            $selectedYear,
+            str_pad((string) $selectedMonth, 2, '0', STR_PAD_LEFT)
+        );
+
+        return $this->xlsxService->download(array_merge([$headings], $rows), $filename);
+    }
+
+    public function downloadEbupot(Request $request, EbupotReport $report): StreamedResponse
+    {
+        $currentUser = $request->user();
+        abort_unless($currentUser->isSuperAdmin() || $currentUser->isAdminUnit(), 403);
+        $this->ensureCanAccessEbupotReport($report, $currentUser);
+        abort_if($report->source !== 'tpp', 404);
+
+        $entries = collect($report->payload['entries'] ?? []);
+
+        if ($entries->isEmpty()) {
+            abort(404, 'Data e-Bupot tidak ditemukan.');
+        }
+
+        $format = strtolower((string) $request->query('format', 'xlsx'));
+
+        if ($format === 'xml') {
+            $xmlContent = $this->buildEbupotXml(
+                $entries,
+                $report->npwp_pemotong ?? '',
+                $report->bulan,
+                $report->tahun
+            );
+
+            $filename = sprintf(
+                'ebupot-tpp-%s-%d-%s.xml',
+                $report->jenis_asn,
+                $report->tahun,
+                str_pad((string) $report->bulan, 2, '0', STR_PAD_LEFT)
+            );
+
+            return response()->streamDownload(function () use ($xmlContent) {
+                echo $xmlContent;
+            }, $filename, [
+                'Content-Type' => 'application/xml',
+            ]);
+        }
+
+        $headings = $this->ebupotHeadings();
+        $rows = $this->mapEbupotRows($entries);
+
+        $filename = sprintf(
+            'ebupot-tpp-%s-%d-%s.xlsx',
+            $report->jenis_asn,
+            $report->tahun,
+            str_pad((string) $report->bulan, 2, '0', STR_PAD_LEFT)
+        );
+
+        return $this->xlsxService->download(array_merge([$headings], $rows), $filename);
+    }
     public function create(Request $request): View
     {
         $currentUser = $request->user();
@@ -718,7 +978,105 @@ class TppController extends Controller
 
         return array_values(array_unique(array_map('strval', $values)));
     }
+    private function prepareEbupotEntries(
+        User $currentUser,
+        string $selectedType,
+        int $selectedYear,
+        int $selectedMonth,
+        string $defaultTin,
+        string $defaultIdTku,
+        string $defaultKodeObjek,
+        string $defaultCutOffDate
+    ): Collection {
+        $allowanceFields = array_keys($this->allowanceFields());
+        $adjustmentFields = [
+            'potongan_pph_21',
+            'iuran_jaminan_kecelakaan_kerja',
+            'iuran_jaminan_kematian',
+        ];
 
+        $tppQuery = Tpp::query()
+            ->with(['pegawai' => function ($relation) {
+                $relation->select('id', 'nama_lengkap', 'nik', 'status_perkawinan', 'jumlah_istri_suami', 'jumlah_anak', 'skpd_id');
+            }])
+            ->whereIn('jenis_asn', $this->jenisAsnScope($selectedType))
+            ->where('tahun', $selectedYear)
+            ->where('bulan', $selectedMonth);
+
+        if (! $currentUser->isSuperAdmin()) {
+            $tppQuery->whereHas('pegawai', function ($query) use ($currentUser) {
+                $query->where('skpd_id', $currentUser->skpd_id);
+            });
+        }
+
+        $tpps = $tppQuery->orderBy('pegawai_id')->get();
+
+        return $tpps->map(function (Tpp $tpp) use (
+            $allowanceFields,
+            $adjustmentFields,
+            $defaultTin,
+            $defaultIdTku,
+            $defaultKodeObjek,
+            $defaultCutOffDate,
+            $selectedMonth,
+            $selectedYear
+        ) {
+            $pegawai = $tpp->pegawai;
+            $statusCode = ($pegawai !== null && (int) ($pegawai->status_perkawinan ?? 0) === 1) ? 'K' : 'TK';
+            $dependants = ($pegawai !== null ? (int) ($pegawai->jumlah_istri_suami ?? 0) : 0)
+                + ($pegawai !== null ? (int) ($pegawai->jumlah_anak ?? 0) : 0);
+
+            $allowanceTotal = 0.0;
+            foreach ($allowanceFields as $field) {
+                $allowanceTotal += (float) ($tpp->{$field} ?? 0.0);
+            }
+
+            $gross = $allowanceTotal;
+            foreach ($adjustmentFields as $field) {
+                $gross -= (float) ($tpp->{$field} ?? 0.0);
+            }
+
+            if ($gross < 0) {
+                $gross = 0.0;
+            }
+
+            $terA = $this->calculateTerRate($gross, self::TER_A_BANDS);
+            $terB = $this->calculateTerRate($gross, self::TER_B_BANDS);
+            $terC = $this->calculateTerRate($gross, self::TER_C_BANDS);
+
+            $status = sprintf('%s/%d', $statusCode, $dependants);
+            $tarif = $this->determineTarif($status, $terA, $terB, $terC);
+
+            $masaPajak = (int) ($tpp->bulan ?? $selectedMonth);
+            if ($masaPajak < 1 || $masaPajak > 12) {
+                $masaPajak = $selectedMonth;
+            }
+
+            $tahunPajak = (int) ($tpp->tahun ?? $selectedYear);
+            if ($tahunPajak < 2000) {
+                $tahunPajak = $selectedYear;
+            }
+
+            return [
+                'npwp_pemotong' => $this->digitsOnly($defaultTin),
+                'masa_pajak' => $masaPajak,
+                'tahun_pajak' => $tahunPajak,
+                'status_pegawai' => 'Resident',
+                'npwp_nik_tin' => $this->digitsOnly((string) ($pegawai->nik ?? '')),
+                'nomor_passport' => '',
+                'status' => $status,
+                'posisi' => 'IRT',
+                'sertifikat_fasilitas' => 'N/A',
+                'kode_objek_pajak' => $defaultKodeObjek,
+                'gross' => $gross,
+                'gross_formatted' => number_format($gross, 2, '.', ''),
+                'tarif' => $tarif,
+                'tarif_formatted' => number_format($tarif, 4, '.', ''),
+                'id_tku' => $this->digitsOnly($defaultIdTku),
+                'tgl_pemotongan' => $defaultCutOffDate,
+            ];
+        })->values();
+    }
     private function exportHeadings(array $allowanceFields, array $deductionFields): array
     {
         return array_merge([
@@ -838,4 +1196,129 @@ class TppController extends Controller
 
         return $sum;
     }
+
+    public function perhitungan(Request $request): View
+    {
+        $typeLabels = $this->typeLabels();
+        $monthOptions = $this->monthOptions();
+        $selectedType = $this->resolveType($request->query('type'));
+
+        $validated = $request->validate([
+            'type' => ['nullable', 'string', Rule::in(array_keys($typeLabels))],
+            'tahun' => ['nullable', 'integer', 'min:2000', 'max:' . (date('Y') + 5)],
+            'bulan' => ['nullable', 'integer', Rule::in(array_keys($monthOptions))],
+        ]);
+
+        if (array_key_exists('type', $validated) && $validated['type'] !== null) {
+            $selectedType = $this->resolveType($validated['type']);
+        }
+
+        $selectedYear = array_key_exists('tahun', $validated) ? (int) $validated['tahun'] : null;
+        $selectedMonth = array_key_exists('bulan', $validated) ? (int) $validated['bulan'] : null;
+        $filtersReady = $selectedYear !== null && $selectedMonth !== null;
+
+        $rows = collect();
+
+        if ($filtersReady) {
+            $currentUser = $request->user();
+
+            $baseQuery = Tpp::query()
+                ->with(['pegawai' => function ($relation) {
+                    $relation->select('id', 'nama_lengkap', 'nip', 'jabatan', 'golongan', 'tipe_jabatan', 'skpd_id');
+                }])
+                ->whereIn('jenis_asn', $this->jenisAsnScope($selectedType))
+                ->where('tahun', $selectedYear)
+                ->where('bulan', $selectedMonth);
+
+            if (! $currentUser->isSuperAdmin()) {
+                $baseQuery->whereHas('pegawai', function ($query) use ($currentUser) {
+                    $query->where('skpd_id', $currentUser->skpd_id);
+                });
+            }
+
+            $tpps = $baseQuery->orderBy('pegawai_id')->get();
+
+            $rows = $tpps->map(function (Tpp $tpp) {
+                $pegawai = $tpp->pegawai;
+
+                $bebanKerja = round((float) ($tpp->tpp_beban_kerja ?? 0), 2);
+                $kondisiKerja = round((float) ($tpp->tpp_kondisi_kerja ?? 0), 2);
+
+                $extras = [
+                    'plt20' => $bebanKerja * 0.20,
+                    'ppkd20' => $bebanKerja * 0.20,
+                    'bud20' => $bebanKerja * 0.20,
+                    'kbud20' => $bebanKerja * 0.20,
+                    'tim_tapd20' => $bebanKerja * 0.20,
+                    'tim_tpp20' => $bebanKerja * 0.20,
+                    'bendahara_penerimaan10' => $bebanKerja * 0.10,
+                    'bendahara_pengeluaran30' => $bebanKerja * 0.30,
+                    'pengurus_barang20' => $bebanKerja * 0.20,
+                    'pejabat_pengadaan10' => $bebanKerja * 0.10,
+                    'tim_tapd20_from_beban' => $bebanKerja * 0.20,
+                    'ppk5' => $bebanKerja * 0.05,
+                    'pptk5' => $bebanKerja * 0.05,
+                ];
+
+                $extras = array_map(fn (float $value): float => round($value, 2), $extras);
+
+                $jumlahTpp = round($bebanKerja + $kondisiKerja + array_sum($extras), 2);
+
+                $pfkPph21 = round((float) ($tpp->potongan_pph_21 ?? 0), 2);
+                $pfkBpjs4 = round($jumlahTpp * 0.04, 2);
+                $pfkBpjs1 = round($jumlahTpp * 0.01, 2);
+                $pfkTotal = round($pfkPph21 + $pfkBpjs4 + $pfkBpjs1, 2);
+
+                $netto = round($jumlahTpp - $pfkTotal, 2);
+
+                return [
+                    'pegawai' => [
+                        'nama' => optional($pegawai)->nama_lengkap ?? '-',
+                        'nip' => optional($pegawai)->nip ?? '-',
+                        'jabatan' => optional($pegawai)->jabatan ?? '-',
+                    ],
+                    'kelas_jabatan' => optional($pegawai)->tipe_jabatan ?? '-',
+                    'golongan' => optional($pegawai)->golongan ?? '-',
+                    'beban_kerja' => $bebanKerja,
+                    'extras' => $extras,
+                    'kondisi_kerja' => $kondisiKerja,
+                    'jumlah_tpp' => $jumlahTpp,
+                    'presensi' => [
+                        'ketidakhadiran' => 0,
+                        'persentase_ketidakhadiran' => 0,
+                        'persentase_kehadiran' => 100,
+                        'nilai' => 0,
+                    ],
+                    'kinerja' => round((float) ($tpp->tpp_prestasi_kerja ?? 0), 2),
+                    'bruto' => $jumlahTpp,
+                    'pfk' => [
+                        'pph21' => $pfkPph21,
+                        'bpjs4' => $pfkBpjs4,
+                        'bpjs1' => $pfkBpjs1,
+                    ],
+                    'netto' => $netto,
+                    'tanda_terima' => '',
+                ];
+            });
+        }
+
+        return view('tpps.perhitungan', [
+            'typeLabels' => $typeLabels,
+            'monthOptions' => $monthOptions,
+            'selectedType' => $selectedType,
+            'selectedYear' => $selectedYear,
+            'selectedMonth' => $selectedMonth,
+            'filtersReady' => $filtersReady,
+            'rows' => $rows,
+        ]);
+    }
 }
+
+
+
+
+
+
+
+
+

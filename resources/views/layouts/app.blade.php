@@ -55,7 +55,7 @@
         </a>
         <div class="sidebar">
             <nav class="mt-2">
-                                                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
+                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
                     <li class="nav-item">
                         <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-home"></i>
@@ -71,6 +71,15 @@
                                 </a>
                             </li>
                         @endif
+                        @if (auth()->user()->isAdminUnit())
+                            <li class="nav-item">
+                                <a href="{{ route('skpds.profile') }}" class="nav-link {{ request()->routeIs('skpds.profile') ? 'active' : '' }}">
+                                    <i class="nav-icon fas fa-building"></i>
+                                    <p>Profil Instansi</p>
+                                </a>
+                            </li>
+                        @endif
+
                         <li class="nav-item">
                             <a href="{{ route('users.index') }}" class="nav-link {{ request()->routeIs('users.*') ? 'active' : '' }}">
                                 <i class="nav-icon fas fa-users"></i>
@@ -88,10 +97,17 @@
                                 <i class="nav-icon fas fa-file-invoice-dollar"></i>
                                 <p>Gaji</p>
                             </a>
-                        </li><li class="nav-item">
-                            <a href="{{ route('tpps.index', ['type' => 'pns']) }}" class="nav-link {{ request()->routeIs('tpps.*') ? 'active' : '' }}">
+                        </li>
+                        <li class="nav-item">
+                            <a href="{{ route('tpps.index', ['type' => 'pns']) }}" class="nav-link {{ request()->routeIs('tpps.index') ? 'active' : '' }}">
                                 <i class="nav-icon fas fa-hand-holding-usd"></i>
                                 <p>TPP</p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{{ route('tpps.perhitungan') }}" class="nav-link {{ request()->routeIs('tpps.perhitungan') ? 'active' : '' }}">
+                                <i class="nav-icon fas fa-calculator"></i>
+                                <p>Perhitungan TPP</p>
                             </a>
                         </li>
                     @endauth
@@ -132,9 +148,3 @@
 @stack('scripts')
 </body>
 </html>
-
-
-
-
-
-

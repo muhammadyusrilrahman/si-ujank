@@ -13,6 +13,7 @@ class Skpd extends Model
     protected $fillable = [
         'name',
         'alias',
+        'npwp',
     ];
 
     public function users()

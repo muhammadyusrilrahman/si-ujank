@@ -13,4 +13,10 @@
         <div class="invalid-feedback">{{ $message }}</div>
     @enderror
 </div>
-
+<div class="form-group">
+    <label for="npwp">NPWP Instansi <span class="text-muted small">(Opsional)</span></label>
+    <input type="text" name="npwp" id="npwp" class="form-control @error('npwp') is-invalid @enderror" value="{{ old('npwp', $skpd->npwp ?? '') }}" maxlength="25" placeholder="99.999.999.9-999.999">
+    @error('npwp')
+        <div class="invalid-feedback">{{ $message }}</div>
+    @enderror
+</div>

@@ -1,10 +1,10 @@
-﻿@extends('layouts.app')
 
-@section('title', 'Data TPP')
-@section('page-title', 'Data TPP Pegawai')
 
-@section('content')
-@php
+<?php $__env->startSection('title', 'Data TPP'); ?>
+<?php $__env->startSection('page-title', 'Data TPP Pegawai'); ?>
+
+<?php $__env->startSection('content'); ?>
+<?php
     $typeLabels = $typeLabels ?? ['pns' => 'PNS', 'pppk' => 'PPPK'];
     $monthOptions = $monthOptions ?? [];
     $selectedType = $selectedType ?? 'pns';
@@ -13,6 +13,7 @@
     $selectedMonth = $selectedMonth ?? null;
     $perPage = $perPage ?? 25;
     $perPageOptions = $perPageOptions ?? [25, 50, 100];
+    $searchTerm = $searchTerm ?? null;
     $allowanceFields = $allowanceFields ?? [];
     $deductionFields = $deductionFields ?? [];
     $currentUser = auth()->user();
@@ -25,36 +26,39 @@
     $summaryTotals = $summaryTotals ?? ['allowance' => 0, 'deduction' => 0, 'transfer' => 0];
     $baseColumnCount = 2 + count($allowanceFields) + count($deductionFields) + 3;
     $columnCount = $baseColumnCount + ($canManageTpp ? 2 : 0);
-@endphp
+?>
 <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
     <ul class="nav nav-pills mb-2 mb-md-0">
-        @foreach ($typeLabels as $typeKey => $label)
+        <?php $__currentLoopData = $typeLabels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $typeKey => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
             <li class="nav-item">
-                <a class="nav-link {{ $typeKey === $selectedType ? 'active' : '' }}" href="{{ route('tpps.index', array_filter([
+                <a class="nav-link <?php echo e($typeKey === $selectedType ? 'active' : ''); ?>" href="<?php echo e(route('tpps.index', array_filter([
                     'type' => $typeKey,
                     'tahun' => $selectedYear,
                     'bulan' => $selectedMonth,
                     'per_page' => $perPage === 25 ? null : $perPage,
-                ])) }}">{{ $label }}</a>
+                    'search' => $searchTerm,
+                ]))); ?>"><?php echo e($label); ?></a>
             </li>
-        @endforeach
+        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
     </ul>
     <div class="d-flex flex-wrap gap-2 justify-content-end">
-        @if ($filtersReady)
-            <a href="{{ route('tpps.export', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth]) }}" class="btn btn-success mb-2"><i class="fas fa-file-excel"></i> Ekspor Excel</a>
-            @if ($canManageTpp)
-                <button type="submit" class="btn btn-danger mb-2" id="tpp-bulk-delete-button" form="tpp-bulk-delete-form" formaction="{{ route('tpps.bulk-destroy') }}" formmethod="POST" formnovalidate name="delete_all" value="0" {{ $tppCurrentCount === 0 ? 'disabled' : '' }}>
+        <?php if($filtersReady): ?>
+            <a href="<?php echo e(route('tpps.export', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth])); ?>" class="btn btn-success mb-2"><i class="fas fa-file-excel"></i> Ekspor Excel</a>
+            <?php if($canManageTpp): ?>
+                <a href="<?php echo e(route('tpps.ebupot.index', array_filter(['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth]))); ?>" class="btn btn-outline-info mb-2"><i class="fas fa-clipboard-list"></i> Arsip E-Bupot</a>
+                <a href="<?php echo e(route('tpps.ebupot.create', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth])); ?>" class="btn btn-info mb-2"><i class="fas fa-file-export"></i> Buat E-Bupot</a>
+                <button type="submit" class="btn btn-danger mb-2" id="tpp-bulk-delete-button" form="tpp-bulk-delete-form" formaction="<?php echo e(route('tpps.bulk-destroy')); ?>" formmethod="POST" formnovalidate name="delete_all" value="0" <?php echo e($tppCurrentCount === 0 ? 'disabled' : ''); ?>>
                     <i class="fas fa-trash"></i> Hapus Terpilih
                 </button>
-                <button type="submit" class="btn btn-danger mb-2" id="tpp-bulk-delete-all-button" form="tpp-bulk-delete-form" formaction="{{ route('tpps.bulk-destroy') }}" formmethod="POST" formnovalidate name="delete_all" value="1" {{ $tppTotal === 0 ? 'disabled' : '' }}>
+                <button type="submit" class="btn btn-danger mb-2" id="tpp-bulk-delete-all-button" form="tpp-bulk-delete-form" formaction="<?php echo e(route('tpps.bulk-destroy')); ?>" formmethod="POST" formnovalidate name="delete_all" value="1" <?php echo e($tppTotal === 0 ? 'disabled' : ''); ?>>
                     <i class="fas fa-trash-alt"></i> Hapus Semua
                 </button>
-                <a href="{{ route('tpps.template', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth]) }}" class="btn btn-outline-secondary mb-2"><i class="fas fa-download"></i> Template</a>
-                <form action="{{ route('tpps.import') }}" method="POST" enctype="multipart/form-data" class="form-inline mb-2">
-                    @csrf
-                    <input type="hidden" name="type" value="{{ $selectedType }}">
-                    <input type="hidden" name="tahun" value="{{ $selectedYear }}">
-                    <input type="hidden" name="bulan" value="{{ $selectedMonth }}">
+                <a href="<?php echo e(route('tpps.template', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth])); ?>" class="btn btn-outline-secondary mb-2"><i class="fas fa-download"></i> Template</a>
+                <form action="<?php echo e(route('tpps.import')); ?>" method="POST" enctype="multipart/form-data" class="form-inline mb-2">
+                    <?php echo csrf_field(); ?>
+                    <input type="hidden" name="type" value="<?php echo e($selectedType); ?>">
+                    <input type="hidden" name="tahun" value="<?php echo e($selectedYear); ?>">
+                    <input type="hidden" name="bulan" value="<?php echo e($selectedMonth); ?>">
                     <div class="input-group">
                         <div class="custom-file">
                             <input type="file" name="file" class="custom-file-input" id="tpp-import-file" accept=".xlsx" required>
@@ -65,99 +69,151 @@
                         </div>
                     </div>
                 </form>
-                <a href="{{ route('tpps.create', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth]) }}" class="btn btn-primary mb-2"><i class="fas fa-plus"></i> Tambah Data TPP {{ $typeLabels[$selectedType] ?? strtoupper($selectedType) }}</a>
-            @endif
-        @else
+                <a href="<?php echo e(route('tpps.create', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth])); ?>" class="btn btn-primary mb-2"><i class="fas fa-plus"></i> Tambah Data TPP <?php echo e($typeLabels[$selectedType] ?? strtoupper($selectedType)); ?></a>
+            <?php endif; ?>
+        <?php else: ?>
             <div class="text-muted small mb-2">Pilih tahun dan bulan untuk mengakses ekspor, template, dan impor.</div>
-        @endif
+        <?php endif; ?>
     </div>
-@if ($errors->has('file'))
+<?php if($errors->has('file')): ?>
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        @foreach ($errors->get('file') as $message)
-            <div>{{ $message }}</div>
-        @endforeach
+        <?php $__currentLoopData = $errors->get('file'); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $message): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+            <div><?php echo e($message); ?></div>
+        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
         <button type="button" class="close" data-dismiss="alert" aria-label="Close">
             <span aria-hidden="true">&times;</span>
         </button>
     </div>
-@endif
-@if (session('status'))
+<?php endif; ?>
+<?php if(session('status')): ?>
     <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ session('status') }}
+        <?php echo e(session('status')); ?>
+
         <button type="button" class="close" data-dismiss="alert" aria-label="Close">
             <span aria-hidden="true">&times;</span>
         </button>
     </div>
-@endif
-@if ($filtersReady && $canManageTpp && $tppsPaginator)
-    <form id="tpp-bulk-delete-form" method="POST" action="{{ route('tpps.bulk-destroy') }}" class="d-none">
-        @csrf
-        @method('DELETE')
-        <input type="hidden" name="type" value="{{ $selectedType }}">
-        <input type="hidden" name="tahun" value="{{ $selectedYear }}">
-        <input type="hidden" name="bulan" value="{{ $selectedMonth }}">
-        <input type="hidden" name="per_page" value="{{ $perPage }}">
-        @foreach (request()->except(['ids', 'page', '_token', '_method', 'delete_all', 'type', 'tahun', 'bulan', 'per_page']) as $name => $value)
-            <input type="hidden" name="{{ $name }}" value="{{ $value }}">
-        @endforeach
+<?php endif; ?>
+<?php if($filtersReady && $canManageTpp && $tppsPaginator): ?>
+    <form id="tpp-bulk-delete-form" method="POST" action="<?php echo e(route('tpps.bulk-destroy')); ?>" class="d-none">
+        <?php echo csrf_field(); ?>
+        <?php echo method_field('DELETE'); ?>
+        <input type="hidden" name="type" value="<?php echo e($selectedType); ?>">
+        <input type="hidden" name="tahun" value="<?php echo e($selectedYear); ?>">
+        <input type="hidden" name="bulan" value="<?php echo e($selectedMonth); ?>">
+        <input type="hidden" name="per_page" value="<?php echo e($perPage); ?>">
+        <input type="hidden" name="search" value="<?php echo e($searchTerm); ?>">
+        <?php $__currentLoopData = request()->except(['ids', 'page', '_token', '_method', 'delete_all', 'type', 'tahun', 'bulan', 'per_page', 'search']); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $name => $value): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+            <input type="hidden" name="<?php echo e($name); ?>" value="<?php echo e($value); ?>">
+        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
     </form>
-@endif
+<?php endif; ?>
 <div class="card mb-3">
     <div class="card-body">
-        <form method="GET" action="{{ route('tpps.index') }}" class="form-inline flex-wrap gap-2">
-            <input type="hidden" name="type" value="{{ $selectedType }}">
+        <form method="GET" action="<?php echo e(route('tpps.index')); ?>" class="form-inline flex-wrap gap-2">
+            <input type="hidden" name="type" value="<?php echo e($selectedType); ?>">
             <div class="form-group mr-2 mb-2">
                 <label for="filter-tahun" class="mr-2">Tahun</label>
-                <input type="number" name="tahun" id="filter-tahun" class="form-control @error('tahun') is-invalid @enderror" value="{{ $selectedYear ?? '' }}" min="2000" max="{{ (int) date('Y') + 5 }}" required>
-                @error('tahun')
-                    <div class="invalid-feedback d-block">{{ $message }}</div>
-                @enderror
+                <input type="number" name="tahun" id="filter-tahun" class="form-control <?php $__errorArgs = ['tahun'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>" value="<?php echo e($selectedYear ?? ''); ?>" min="2000" max="<?php echo e((int) date('Y') + 5); ?>" required>
+                <?php $__errorArgs = ['tahun'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                    <div class="invalid-feedback d-block"><?php echo e($message); ?></div>
+                <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
             </div>
             <div class="form-group mr-2 mb-2">
                 <label for="filter-bulan" class="mr-2">Bulan</label>
-                <select name="bulan" id="filter-bulan" class="form-control @error('bulan') is-invalid @enderror" required>
-                    <option value="" disabled {{ $selectedMonth === null ? 'selected' : '' }}>Pilih bulan</option>
-                    @foreach ($monthOptions as $value => $label)
-                        <option value="{{ $value }}" {{ $selectedMonth !== null && (int) $selectedMonth === (int) $value ? 'selected' : '' }}>{{ $label }}</option>
-                    @endforeach
+                <select name="bulan" id="filter-bulan" class="form-control <?php $__errorArgs = ['bulan'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>" required>
+                    <option value="" disabled <?php echo e($selectedMonth === null ? 'selected' : ''); ?>>Pilih bulan</option>
+                    <?php $__currentLoopData = $monthOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $value => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <option value="<?php echo e($value); ?>" <?php echo e($selectedMonth !== null && (int) $selectedMonth === (int) $value ? 'selected' : ''); ?>><?php echo e($label); ?></option>
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </select>
-                @error('bulan')
-                    <div class="invalid-feedback d-block">{{ $message }}</div>
-                @enderror
+                <?php $__errorArgs = ['bulan'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                    <div class="invalid-feedback d-block"><?php echo e($message); ?></div>
+                <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+            </div>
+            <div class="form-group mr-2 mb-2">
+                <label for="filter-search" class="mr-2">Cari</label>
+                <input type="text" name="search" id="filter-search" class="form-control <?php $__errorArgs = ['search'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>" value="<?php echo e($searchTerm ?? ''); ?>" placeholder="Nama atau NIP">
+                <?php $__errorArgs = ['search'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                    <div class="invalid-feedback d-block"><?php echo e($message); ?></div>
+                <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
             </div>
             <div class="form-group mr-2 mb-2">
                 <label for="filter-per-page" class="mr-2">Per halaman</label>
                 <select name="per_page" id="filter-per-page" class="form-control">
-                    @foreach ($perPageOptions as $option)
-                        <option value="{{ $option }}" {{ (int) $perPage === (int) $option ? 'selected' : '' }}>{{ $option }}</option>
-                    @endforeach
+                    <?php $__currentLoopData = $perPageOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $option): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <option value="<?php echo e($option); ?>" <?php echo e((int) $perPage === (int) $option ? 'selected' : ''); ?>><?php echo e($option); ?></option>
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </select>
             </div>
             <button type="submit" class="btn btn-outline-secondary mb-2"><i class="fas fa-filter"></i> Terapkan</button>
         </form>
     </div>
 </div>
-@if ($errors->has('file'))
+<?php if($errors->has('file')): ?>
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        @foreach ($errors->get('file') as $message)
-            <div>{{ $message }}</div>
-        @endforeach
+        <?php $__currentLoopData = $errors->get('file'); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $message): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+            <div><?php echo e($message); ?></div>
+        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
         <button type="button" class="close" data-dismiss="alert" aria-label="Close">
             <span aria-hidden="true">&times;</span>
         </button>
     </div>
-@endif
+<?php endif; ?>
 
-@if (session('status'))
+<?php if(session('status')): ?>
     <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ session('status') }}
+        <?php echo e(session('status')); ?>
+
         <button type="button" class="close" data-dismiss="alert" aria-label="Close">
             <span aria-hidden="true">&times;</span>
         </button>
     </div>
-@endif
+<?php endif; ?>
 
-@if ($filtersReady && $tppsPaginator)
+<?php if($filtersReady && $tppsPaginator): ?>
 <div class="card">
 
     <div class="card-body p-0">
@@ -165,57 +221,57 @@
             <table class="table table-striped table-hover mb-0">
                 <thead class="thead-light">
                     <tr>
-                        @if ($canManageTpp)
+                        <?php if($canManageTpp): ?>
                             <th class="text-center" style="width: 60px;">
                                 <input type="checkbox" id="select-all-tpps" aria-label="Pilih semua Data TPP">
                             </th>
-                        @endif
+                        <?php endif; ?>
                         <th>Pegawai</th>
                         <th>Periode</th>
-                        @foreach ($allowanceFields as $field => $label)
-                            <th>{{ $label }}</th>
-                        @endforeach
-                        @foreach ($deductionFields as $field => $label)
-                            <th>{{ $label }}</th>
-                        @endforeach
+                        <?php $__currentLoopData = $allowanceFields; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $field => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <th><?php echo e($label); ?></th>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                        <?php $__currentLoopData = $deductionFields; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $field => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <th><?php echo e($label); ?></th>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         <th>Jumlah TPP</th>
                         <th>Jumlah Potongan</th>
                         <th>Jumlah Ditransfer</th>
-                        @if ($canManageTpp)
+                        <?php if($canManageTpp): ?>
                             <th class="text-center" style="width: 100px;">Aksi</th>
-                        @endif
+                        <?php endif; ?>
                     </tr>
                 </thead>
                 <tbody>
-                    @if ($tppTotal > 0)
+                    <?php if($tppTotal > 0): ?>
                         <tr class="font-weight-bold bg-light">
-                            @if ($canManageTpp)
+                            <?php if($canManageTpp): ?>
                                 <td class="text-center align-middle">-</td>
-                            @endif
-                            <td>Total ({{ number_format($tppTotal, 0, ',', '.') }} data)</td>
-                            <td>{{ $selectedMonth !== null && $selectedYear !== null ? (($monthOptions[$selectedMonth] ?? $selectedMonth) . '/' . $selectedYear) : '-' }}</td>
-                            @foreach ($allowanceFields as $field => $label)
-                                <td>{{ $formatCurrency((float) ($monetaryTotals[$field] ?? 0)) }}</td>
-                            @endforeach
-                            @foreach ($deductionFields as $field => $label)
-                                <td>{{ $formatCurrency((float) ($monetaryTotals[$field] ?? 0)) }}</td>
-                            @endforeach
-                            <td>{{ $formatCurrency((float) ($summaryTotals['allowance'] ?? 0)) }}</td>
-                            <td>{{ $formatCurrency((float) ($summaryTotals['deduction'] ?? 0)) }}</td>
-                            <td>{{ $formatCurrency((float) ($summaryTotals['transfer'] ?? 0)) }}</td>
-                            @if ($canManageTpp)
+                            <?php endif; ?>
+                            <td>Total (<?php echo e(number_format($tppTotal, 0, ',', '.')); ?> data)</td>
+                            <td><?php echo e($selectedMonth !== null && $selectedYear !== null ? (($monthOptions[$selectedMonth] ?? $selectedMonth) . '/' . $selectedYear) : '-'); ?></td>
+                            <?php $__currentLoopData = $allowanceFields; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $field => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <td><?php echo e($formatCurrency((float) ($monetaryTotals[$field] ?? 0))); ?></td>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            <?php $__currentLoopData = $deductionFields; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $field => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <td><?php echo e($formatCurrency((float) ($monetaryTotals[$field] ?? 0))); ?></td>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            <td><?php echo e($formatCurrency((float) ($summaryTotals['allowance'] ?? 0))); ?></td>
+                            <td><?php echo e($formatCurrency((float) ($summaryTotals['deduction'] ?? 0))); ?></td>
+                            <td><?php echo e($formatCurrency((float) ($summaryTotals['transfer'] ?? 0))); ?></td>
+                            <?php if($canManageTpp): ?>
                                 <td class="text-center align-middle">-</td>
-                            @endif
+                            <?php endif; ?>
                         </tr>
-                    @endif
-                    @forelse ($tpps as $tpp)
+                    <?php endif; ?>
+                    <?php $__empty_1 = true; $__currentLoopData = $tpps; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $tpp): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                         <tr>
-                            @if ($canManageTpp)
+                            <?php if($canManageTpp): ?>
                                 <td class="text-center align-middle">
-                                    <input type="checkbox" name="ids[]" value="{{ $tpp->id }}" class="tpp-select-checkbox" form="tpp-bulk-delete-form">
+                                    <input type="checkbox" name="ids[]" value="<?php echo e($tpp->id); ?>" class="tpp-select-checkbox" form="tpp-bulk-delete-form">
                                 </td>
-                            @endif
-                            @php
+                            <?php endif; ?>
+                            <?php
                                 $totalAllowance = 0;
                                 foreach ($allowanceFields as $field => $label) {
                                     $totalAllowance += (float) $tpp->$field;
@@ -225,54 +281,55 @@
                                     $totalDeduction += (float) $tpp->$field;
                                 }
                                 $transfer = $totalAllowance - $totalDeduction;
-                            @endphp
+                            ?>
                             <td>
-                                <div class="font-weight-bold">{{ optional($tpp->pegawai)->nama_lengkap }}</div>
-                                <div class="text-muted small">{{ optional($tpp->pegawai)->nip ?: '-' }}</div>
+                                <div class="font-weight-bold"><?php echo e(optional($tpp->pegawai)->nama_lengkap); ?></div>
+                                <div class="text-muted small"><?php echo e(optional($tpp->pegawai)->nip ?: '-'); ?></div>
                             </td>
-                            <td>{{ $monthOptions[$tpp->bulan] ?? $tpp->bulan }}/{{ $tpp->tahun }}</td>
-                            @foreach ($allowanceFields as $field => $label)
-                                <td>{{ $formatCurrency((float) $tpp->$field) }}</td>
-                            @endforeach
-                            @foreach ($deductionFields as $field => $label)
-                                <td>{{ $formatCurrency((float) $tpp->$field) }}</td>
-                            @endforeach
-                            <td>{{ $formatCurrency($totalAllowance) }}</td>
-                            <td>{{ $formatCurrency($totalDeduction) }}</td>
-                            <td>{{ $formatCurrency($transfer) }}</td>
-                            @if ($canManageTpp)
+                            <td><?php echo e($monthOptions[$tpp->bulan] ?? $tpp->bulan); ?>/<?php echo e($tpp->tahun); ?></td>
+                            <?php $__currentLoopData = $allowanceFields; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $field => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <td><?php echo e($formatCurrency((float) $tpp->$field)); ?></td>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            <?php $__currentLoopData = $deductionFields; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $field => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <td><?php echo e($formatCurrency((float) $tpp->$field)); ?></td>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            <td><?php echo e($formatCurrency($totalAllowance)); ?></td>
+                            <td><?php echo e($formatCurrency($totalDeduction)); ?></td>
+                            <td><?php echo e($formatCurrency($transfer)); ?></td>
+                            <?php if($canManageTpp): ?>
                                 <td class="text-center">
-                                    <a href="{{ route('tpps.edit', ['tpp' => $tpp, 'type' => $selectedType]) }}" class="btn btn-sm btn-warning mb-1"><i class="fas fa-edit"></i></a>
-                                    <form action="{{ route('tpps.destroy', ['tpp' => $tpp, 'type' => $selectedType]) }}" method="POST" class="d-inline" onsubmit="return confirm('Hapus data TPP ini?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <input type="hidden" name="type" value="{{ $selectedType }}">
+                                    <a href="<?php echo e(route('tpps.edit', ['tpp' => $tpp, 'type' => $selectedType])); ?>" class="btn btn-sm btn-warning mb-1"><i class="fas fa-edit"></i></a>
+                                    <form action="<?php echo e(route('tpps.destroy', ['tpp' => $tpp, 'type' => $selectedType])); ?>" method="POST" class="d-inline" onsubmit="return confirm('Hapus data TPP ini?');">
+                                        <?php echo csrf_field(); ?>
+                                        <?php echo method_field('DELETE'); ?>
+                                        <input type="hidden" name="type" value="<?php echo e($selectedType); ?>">
                                         <button type="submit" class="btn btn-sm btn-danger"><i class="fas fa-trash"></i></button>
                                     </form>
                                 </td>
-                            @endif
+                            <?php endif; ?>
                         </tr>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <tr>
-                            <td colspan="{{ $columnCount }}" class="text-center text-muted py-4">Belum ada Data TPP untuk kriteria ini.</td>
+                            <td colspan="<?php echo e($columnCount); ?>" class="text-center text-muted py-4">Belum ada Data TPP untuk kriteria ini.</td>
                         </tr>
-                    @endforelse
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
-    @if ($tpps->hasPages())
+    <?php if($tpps->hasPages()): ?>
         <div class="card-footer bg-white">
-            {{ $tpps->onEachSide(1)->links('pagination::bootstrap-4') }}
-        </div>
-    @endif
-</div>
-@elseif (! $filtersReady)
-    <div class="alert alert-info">Pilih tahun dan bulan untuk menampilkan Data TPP.</div>
-@endif
-@endsection
+            <?php echo e($tpps->appends(['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth, 'per_page' => $perPage === 25 ? null : $perPage, 'search' => $searchTerm])->onEachSide(1)->links('pagination::bootstrap-4')); ?>
 
-@push('scripts')
+        </div>
+    <?php endif; ?>
+</div>
+<?php elseif(! $filtersReady): ?>
+    <div class="alert alert-info">Pilih tahun dan bulan untuk menampilkan Data TPP.</div>
+<?php endif; ?>
+<?php $__env->stopSection(); ?>
+
+<?php $__env->startPush('scripts'); ?>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const importInput = document.getElementById('tpp-import-file');
@@ -340,7 +397,7 @@
         updateButtonState();
     });
 </script>
-@endpush
+<?php $__env->stopPush(); ?>
 
 
 
@@ -357,3 +414,6 @@
 
 
 
+
+
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\laragon\www\si-ujank\resources\views/tpps/index.blade.php ENDPATH**/ ?>

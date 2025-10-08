@@ -26,12 +26,17 @@ Route::middleware('auth')->group(function () {
         Route::get('pegawais/export', [PegawaiController::class, 'export'])->name('pegawais.export');
         Route::get('gajis', [GajiController::class, 'index'])->name('gajis.index');
         Route::get('gajis/export', [GajiController::class, 'export'])->name('gajis.export');        Route::get('tpps', [TppController::class, 'index'])->name('tpps.index');
+        Route::get('tpps/perhitungan', [TppController::class, 'perhitungan'])->name('tpps.perhitungan');
         Route::get('tpps/export', [TppController::class, 'export'])->name('tpps.export');
     });
 
     Route::middleware('role:super_admin,admin_unit')->group(function () {
         Route::get('gajis/template', [GajiController::class, 'template'])->name('gajis.template');
         Route::post('gajis/import', [GajiController::class, 'import'])->name('gajis.import');
+        Route::get('gajis/ebupot', [GajiController::class, 'indexEbupot'])->name('gajis.ebupot.index');
+        Route::get('gajis/ebupot/{report}/download', [GajiController::class, 'downloadEbupot'])->name('gajis.ebupot.download')->whereNumber('report');
+        Route::get('gajis/ebupot/create', [GajiController::class, 'createEbupot'])->name('gajis.ebupot.create');
+        Route::post('gajis/ebupot', [GajiController::class, 'storeEbupot'])->name('gajis.ebupot.store');
         Route::get('gajis/create', [GajiController::class, 'create'])->name('gajis.create');
         Route::post('gajis', [GajiController::class, 'store'])->name('gajis.store');
         Route::get('gajis/{gaji}/edit', [GajiController::class, 'edit'])->name('gajis.edit');
@@ -39,6 +44,11 @@ Route::middleware('auth')->group(function () {
         Route::patch('gajis/{gaji}', [GajiController::class, 'update']);
         Route::delete('gajis/bulk-destroy', [GajiController::class, 'bulkDestroy'])->name('gajis.bulk-destroy');
         Route::delete('gajis/{gaji}', [GajiController::class, 'destroy'])->name('gajis.destroy')->whereNumber('gaji');
+
+        Route::get('tpps/ebupot', [TppController::class, 'indexEbupot'])->name('tpps.ebupot.index');
+        Route::get('tpps/ebupot/create', [TppController::class, 'createEbupot'])->name('tpps.ebupot.create');
+        Route::post('tpps/ebupot', [TppController::class, 'storeEbupot'])->name('tpps.ebupot.store');
+        Route::get('tpps/ebupot/{report}/download', [TppController::class, 'downloadEbupot'])->name('tpps.ebupot.download')->whereNumber('report');
         Route::get('tpps/template', [TppController::class, 'template'])->name('tpps.template');
         Route::post('tpps/import', [TppController::class, 'import'])->name('tpps.import');
         Route::get('tpps/create', [TppController::class, 'create'])->name('tpps.create');
@@ -48,6 +58,10 @@ Route::middleware('auth')->group(function () {
         Route::patch('tpps/{tpp}', [TppController::class, 'update']);
         Route::delete('tpps/bulk-destroy', [TppController::class, 'bulkDestroy'])->name('tpps.bulk-destroy');
         Route::delete('tpps/{tpp}', [TppController::class, 'destroy'])->name('tpps.destroy')->whereNumber('tpp');
+
+        Route::get('skpds/profile', [SkpdController::class, 'profile'])->name('skpds.profile');
+        Route::put('skpds/profile', [SkpdController::class, 'updateProfile'])->name('skpds.profile.update');
+        Route::patch('skpds/profile', [SkpdController::class, 'updateProfile']);
 
         Route::get('users/create', [UserController::class, 'create'])->name('users.create');
         Route::post('users', [UserController::class, 'store'])->name('users.store');
@@ -63,16 +77,9 @@ Route::middleware('auth')->group(function () {
         Route::patch('pegawais/{pegawai}', [PegawaiController::class, 'update']);
         Route::delete('pegawais/bulk-destroy', [PegawaiController::class, 'bulkDestroy'])->name('pegawais.bulk-destroy');
         Route::delete('pegawais/{pegawai}', [PegawaiController::class, 'destroy'])->name('pegawais.destroy')->whereNumber('pegawai');
-
         Route::get('pegawais/template', [PegawaiController::class, 'template'])->name('pegawais.template');
         Route::post('pegawais/import', [PegawaiController::class, 'import'])->name('pegawais.import');
     });
 });
-
-
-
-
-
-
 
 

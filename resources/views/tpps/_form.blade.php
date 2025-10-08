@@ -11,6 +11,22 @@
     $defaultMonth = $defaultMonth ?? null;
     $selectedYear = old('tahun', optional($tpp)->tahun ?? $defaultYear);
     $selectedMonth = old('bulan', optional($tpp)->bulan ?? $defaultMonth);
+    $monetaryMeta = config('tpp.monetary_fields', []);
+    $monetaryCategories = [];
+    foreach ($monetaryMeta as $field => $meta) {
+        $monetaryCategories[$field] = $meta['category'] ?? 'allowance';
+    }
+    $initialTotals = ['allowance' => 0.0, 'deduction' => 0.0];
+    foreach ($monetaryFields as $field => $label) {
+        $rawValue = old($field, optional($tpp)->$field);
+        $numericValue = is_numeric($rawValue) ? (float) $rawValue : 0.0;
+        if (($monetaryCategories[$field] ?? 'allowance') === 'deduction') {
+            $initialTotals['deduction'] += $numericValue;
+        } else {
+            $initialTotals['allowance'] += $numericValue;
+        }
+    }
+    $initialTotals['transfer'] = $initialTotals['allowance'] - $initialTotals['deduction'];
 @endphp
 <div class="form-row">
     <div class="form-group col-md-4">
@@ -56,10 +72,81 @@
     @foreach ($monetaryFields as $field => $label)
         <div class="form-group col-md-4">
             <label for="{{ $field }}">{{ $label }}</label>
-            <input type="number" step="0.01" min="0" name="{{ $field }}" id="{{ $field }}" class="form-control @error($field) is-invalid @enderror" value="{{ old($field, optional($tpp)->$field) }}" inputmode="decimal">
+            <input
+                type="number"
+                step="0.01"
+                min="0"
+                name="{{ $field }}"
+                id="{{ $field }}"
+                class="form-control @error($field) is-invalid @enderror tpp-monetary-input"
+                value="{{ old($field, optional($tpp)->$field) }}"
+                inputmode="decimal"
+                data-category="{{ $monetaryCategories[$field] ?? 'allowance' }}">
             @error($field)
                 <div class="invalid-feedback">{{ $message }}</div>
             @enderror
         </div>
     @endforeach
 </div>
+<div class="bg-light rounded border p-3 mb-3">
+    <div class="row text-center text-md-left">
+        <div class="col-md-4 mb-3 mb-md-0">
+            <div class="font-weight-bold text-muted text-uppercase small">Total TPP</div>
+            <div class="h5 mb-0" id="tpp-total-allowance">{{ number_format($initialTotals['allowance'], 2, ',', '.') }}</div>
+        </div>
+        <div class="col-md-4 mb-3 mb-md-0">
+            <div class="font-weight-bold text-muted text-uppercase small">Total Potongan</div>
+            <div class="h5 mb-0" id="tpp-total-deduction">{{ number_format($initialTotals['deduction'], 2, ',', '.') }}</div>
+        </div>
+        <div class="col-md-4">
+            <div class="font-weight-bold text-muted text-uppercase small">Total Ditransfer</div>
+            <div class="h5 mb-0" id="tpp-total-transfer">{{ number_format($initialTotals['transfer'], 2, ',', '.') }}</div>
+        </div>
+    </div>
+</div>
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const inputs = Array.from(document.querySelectorAll('.tpp-monetary-input'));
+        if (!inputs.length) {
+            return;
+        }
+
+        const allowanceEl = document.getElementById('tpp-total-allowance');
+        const deductionEl = document.getElementById('tpp-total-deduction');
+        const transferEl = document.getElementById('tpp-total-transfer');
+        const formatter = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        const updateTotals = () => {
+            let allowance = 0;
+            let deduction = 0;
+
+            inputs.forEach((input) => {
+                const category = input.dataset.category || 'allowance';
+                const value = Number.parseFloat(input.value);
+                const amount = Number.isFinite(value) ? value : 0;
+
+                if (category === 'deduction') {
+                    deduction += amount;
+                } else {
+                    allowance += amount;
+                }
+            });
+
+            const transfer = allowance - deduction;
+
+            if (allowanceEl) allowanceEl.textContent = formatter.format(allowance);
+            if (deductionEl) deductionEl.textContent = formatter.format(deduction);
+            if (transferEl) transferEl.textContent = formatter.format(transfer);
+        };
+
+        inputs.forEach((input) => {
+            input.addEventListener('input', updateTotals);
+            input.addEventListener('change', updateTotals);
+        });
+
+        updateTotals();
+    });
+</script>
+@endpush
+

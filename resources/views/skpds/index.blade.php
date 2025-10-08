@@ -47,6 +47,7 @@
                         <th style="width: 60px">#</th>
                         <th>Nama</th>
                         <th>Alias</th>
+                        <th>NPWP</th>
                         <th>Jumlah Pengguna</th>
                         <th style="width: 160px">Aksi</th>
                     </tr>
@@ -57,7 +58,8 @@
                             <td>{{ $skpds->firstItem() + $index }}</td>
                             <td>{{ $skpd->name }}</td>
                             <td>{{ $skpd->alias ?? '-' }}</td>
-                            <td>{{ $skpd->users()->count() }}</td>
+                            <td>{{ $skpd->npwp ?? '-' }}</td>
+                            <td>{{ $skpd->users_count }}</td>
                             <td>
                                 <a href="{{ route('skpds.edit', $skpd) }}" class="btn btn-sm btn-warning"><i class="fas fa-edit"></i></a>
                                 <form action="{{ route('skpds.destroy', $skpd) }}" method="POST" class="d-inline-block" onsubmit="return confirm('Hapus SKPD ini?');">
@@ -69,7 +71,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="text-center py-4 text-muted">Belum ada data SKPD.</td>
+                            <td colspan="6" class="text-center py-4 text-muted">Belum ada data SKPD.</td>
                         </tr>
                     @endforelse
                 </tbody>

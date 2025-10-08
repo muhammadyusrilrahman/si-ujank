@@ -47,6 +47,8 @@
         @if ($filtersReady)
             <a href="{{ route('gajis.export', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth]) }}" class="btn btn-success mb-2"><i class="fas fa-file-excel"></i> Ekspor Excel</a>
             @if ($canManageGaji)
+                <a href="{{ route('gajis.ebupot.index', array_filter(['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth])) }}" class="btn btn-outline-info mb-2"><i class="fas fa-clipboard-list"></i> Arsip E-Bupot</a>
+                <a href="{{ route('gajis.ebupot.create', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth]) }}" class="btn btn-info mb-2"><i class="fas fa-file-export"></i> Buat E-Bupot</a>
                 <button type="submit" class="btn btn-danger mb-2" id="gaji-bulk-delete-button"
                         form="gaji-bulk-delete-form" formaction="{{ route('gajis.bulk-destroy') }}"
                         formmethod="POST" formnovalidate name="delete_all" value="0" {{ $gajiCurrentCount === 0 ? 'disabled' : '' }}>
@@ -353,3 +355,4 @@
     });
 </script>
 @endpush
+
