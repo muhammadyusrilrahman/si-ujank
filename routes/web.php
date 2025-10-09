@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\GajiController;
 use App\Http\Controllers\TppController;
+use App\Http\Controllers\TppCalculationController;
 use App\Http\Controllers\PegawaiController;
 use App\Http\Controllers\SkpdController;
 use App\Http\Controllers\UserController;
@@ -26,7 +27,9 @@ Route::middleware('auth')->group(function () {
         Route::get('pegawais/export', [PegawaiController::class, 'export'])->name('pegawais.export');
         Route::get('gajis', [GajiController::class, 'index'])->name('gajis.index');
         Route::get('gajis/export', [GajiController::class, 'export'])->name('gajis.export');        Route::get('tpps', [TppController::class, 'index'])->name('tpps.index');
-        Route::get('tpps/perhitungan', [TppController::class, 'perhitungan'])->name('tpps.perhitungan');
+        Route::get('tpps/perhitungan', [TppCalculationController::class, 'index'])->name('tpps.perhitungan');
+        Route::get('tpps/perhitungan/export', [TppCalculationController::class, 'export'])->name('tpps.perhitungan.export');
+        Route::get('tpps/perhitungan/template', [TppCalculationController::class, 'template'])->name('tpps.perhitungan.template');
         Route::get('tpps/export', [TppController::class, 'export'])->name('tpps.export');
     });
 
@@ -53,6 +56,13 @@ Route::middleware('auth')->group(function () {
         Route::post('tpps/import', [TppController::class, 'import'])->name('tpps.import');
         Route::get('tpps/create', [TppController::class, 'create'])->name('tpps.create');
         Route::post('tpps', [TppController::class, 'store'])->name('tpps.store');
+        Route::get('tpps/perhitungan/create', [TppCalculationController::class, 'create'])->name('tpps.perhitungan.create');
+        Route::post('tpps/perhitungan', [TppCalculationController::class, 'store'])->name('tpps.perhitungan.store');
+        Route::get('tpps/perhitungan/{calculation}/edit', [TppCalculationController::class, 'edit'])->name('tpps.perhitungan.edit')->whereNumber('calculation');
+        Route::put('tpps/perhitungan/{calculation}', [TppCalculationController::class, 'update'])->name('tpps.perhitungan.update')->whereNumber('calculation');
+        Route::delete('tpps/perhitungan/{calculation}', [TppCalculationController::class, 'destroy'])->name('tpps.perhitungan.destroy')->whereNumber('calculation');
+        Route::post('tpps/perhitungan/copy', [TppCalculationController::class, 'copy'])->name('tpps.perhitungan.copy');
+        Route::post('tpps/perhitungan/import', [TppCalculationController::class, 'import'])->name('tpps.perhitungan.import');
         Route::get('tpps/{tpp}/edit', [TppController::class, 'edit'])->name('tpps.edit');
         Route::put('tpps/{tpp}', [TppController::class, 'update'])->name('tpps.update');
         Route::patch('tpps/{tpp}', [TppController::class, 'update']);

@@ -54,15 +54,15 @@
             <table class="table">
                 <tr>
                     <th style="width: 200px">Total Komponen TPP</th>
-                    <td>Rp {{ number_format($allowanceTotal, 2, ',', '.') }}</td>
+                    <td>{{ \App\Support\MoneyFormatter::rupiah($allowanceTotal) }}</td>
                 </tr>
                 <tr>
                     <th>Total Potongan</th>
-                    <td>Rp {{ number_format($deductionTotal, 2, ',', '.') }}</td>
+                    <td>{{ \App\Support\MoneyFormatter::rupiah($deductionTotal) }}</td>
                 </tr>
                 <tr class="table-primary">
                     <th>Jumlah Ditransfer</th>
-                    <td>Rp {{ number_format($transfer, 2, ',', '.') }}</td>
+                    <td>{{ \App\Support\MoneyFormatter::rupiah($transfer) }}</td>
                 </tr>
             </table>
         </div>

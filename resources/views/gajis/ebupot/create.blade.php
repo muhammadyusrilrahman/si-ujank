@@ -70,7 +70,7 @@
                                 <td>{{ $entry['posisi'] }}</td>
                                 <td>{{ $entry['sertifikat_fasilitas'] }}</td>
                                 <td>{{ $entry['kode_objek_pajak'] }}</td>
-                                <td>{{ number_format($entry['gross'], 2, ',', '.') }}</td>
+                                <td>{{ \App\Support\MoneyFormatter::rupiah($entry['gross']) }}</td>
                                 <td>{{ rtrim(rtrim(number_format($entry['tarif'], 4, ',', '.'), '0'), ',') ?: '0' }}</td>
                                 <td>{{ $entry['id_tku'] !== '' ? $entry['id_tku'] : '—' }}</td>
                                 <td>{{ $entry['tgl_pemotongan'] }}</td>

@@ -18,7 +18,7 @@
     $deductionFields = $deductionFields ?? [];
     $currentUser = auth()->user();
     $canManageTpp = $currentUser->isSuperAdmin() || $currentUser->isAdminUnit();
-    $formatCurrency = fn (float $value) => number_format($value, 2, ',', '.');
+    $formatCurrency = fn (float $value) => \App\Support\MoneyFormatter::rupiah($value);
     $tppsPaginator = $tpps ?? null;
     $tppTotal = $tppsPaginator ? $tppsPaginator->total() : 0;
     $tppCurrentCount = $tppsPaginator ? $tppsPaginator->count() : 0;

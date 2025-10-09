@@ -36,4 +36,5 @@
 
 @section('scripts')
     @yield('page-scripts')
+    @yield('inline-scripts')
 @endsection

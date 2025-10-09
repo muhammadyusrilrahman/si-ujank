@@ -90,7 +90,7 @@
                             <td>{{ $report->id_tku ?: '-' }}</td>
                             <td>{{ $report->kode_objek ?: '-' }}</td>
                             <td class="text-center">{{ number_format($report->entry_count) }}</td>
-                            <td class="text-right">{{ number_format((float) $report->total_gross, 2, ',', '.') }}</td>
+                            <td class="text-right">{{ \App\Support\MoneyFormatter::rupiah((float) $report->total_gross) }}</td>
                             <td>{{ optional($report->user)->name ?? '-' }}</td>
                             <td class="text-center">{{ optional($report->updated_at)->format('d/m/Y H:i') }}</td>
                             <td class="text-center">

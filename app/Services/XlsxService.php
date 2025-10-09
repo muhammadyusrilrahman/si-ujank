@@ -6,6 +6,7 @@ use App\Support\SimpleXLSX;
 use App\Support\SimpleXLSXGen;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
+use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class XlsxService
@@ -36,6 +37,58 @@ class XlsxService
         }, $fallbackName, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
+    }
+
+    /**
+     * @param  array<int,array{title?:string,rows:array<int,array<int|string|float|bool|null>>}>  $sheets
+     */
+    public function downloadMultiSheet(array $sheets, string $filename): StreamedResponse
+    {
+        if (empty($sheets)) {
+            throw new InvalidArgumentException('Daftar sheet tidak boleh kosong.');
+        }
+
+        if (extension_loaded('zip')) {
+            try {
+                $normalizedName = $this->ensureExtension($filename, 'xlsx');
+                $workbook = null;
+
+                foreach (array_values($sheets) as $index => $sheet) {
+                    $title = (string) ($sheet['title'] ?? ('Sheet ' . ($index + 1)));
+                    $rows = $sheet['rows'] ?? [];
+                    if (! is_array($rows)) {
+                        $rows = [$rows];
+                    }
+
+                    if ($workbook === null) {
+                        $workbook = SimpleXLSXGen::fromArray($rows, $title);
+                    } else {
+                        $workbook->addSheet($rows, $title);
+                    }
+                }
+
+                if ($workbook === null) {
+                    throw new InvalidArgumentException('Sheet tidak valid.');
+                }
+
+                $content = (string) $workbook;
+
+                return response()->streamDownload(function () use ($content) {
+                    echo $content;
+                }, $normalizedName, [
+                    'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                ]);
+            } catch (\Throwable $exception) {
+                // Fall back to single-sheet generation.
+            }
+        }
+
+        $firstSheet = $sheets[0]['rows'] ?? [];
+        if (! is_array($firstSheet)) {
+            $firstSheet = [$firstSheet];
+        }
+
+        return $this->download($firstSheet, $filename);
     }
 
     public function import(UploadedFile $file): Collection

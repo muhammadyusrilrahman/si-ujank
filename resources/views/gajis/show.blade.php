@@ -43,19 +43,19 @@
             <table class="table">
                 <tr>
                     <th style="width: 200px">Gaji Pokok</th>
-                    <td>Rp {{ number_format($gaji->gaji_pokok, 0, ',', '.') }}</td>
+                    <td>{{ \App\Support\MoneyFormatter::rupiah($gaji->gaji_pokok, 0) }}</td>
                 </tr>
                 <tr>
                     <th>Tunjangan</th>
-                    <td>Rp {{ number_format($gaji->tunjangan, 0, ',', '.') }}</td>
+                    <td>{{ \App\Support\MoneyFormatter::rupiah($gaji->tunjangan, 0) }}</td>
                 </tr>
                 <tr>
                     <th>Potongan</th>
-                    <td>Rp {{ number_format($gaji->potongan, 0, ',', '.') }}</td>
+                    <td>{{ \App\Support\MoneyFormatter::rupiah($gaji->potongan, 0) }}</td>
                 </tr>
                 <tr class="table-primary">
                     <th>Total Gaji</th>
-                    <td>Rp {{ number_format($gaji->gaji_pokok + $gaji->tunjangan - $gaji->potongan, 0, ',', '.') }}</td>
+                    <td>{{ \App\Support\MoneyFormatter::rupiah($gaji->gaji_pokok + $gaji->tunjangan - $gaji->potongan, 0) }}</td>
                 </tr>
             </table>
         </div>

@@ -25,7 +25,7 @@
     $currentUser = auth()->user();
     $canManageGaji = $currentUser->isSuperAdmin() || $currentUser->isAdminUnit();
     $columnCount = $columnBase + ($canManageGaji ? 2 : 0);
-    $formatCurrency = fn (float $value) => number_format($value, 2, ',', '.');
+    $formatCurrency = fn (float $value) => \App\Support\MoneyFormatter::rupiah($value);
 @endphp
 
 <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">

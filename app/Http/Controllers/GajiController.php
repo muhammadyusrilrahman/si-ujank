@@ -155,6 +155,411 @@ class GajiController extends Controller
         ]);
     }
 
+    public function store(Request $request): RedirectResponse
+    {
+        $currentUser = $request->user();
+        abort_unless($currentUser->isSuperAdmin() || $currentUser->isAdminUnit(), 403);
+
+        $typeLabels = $this->typeLabels();
+        $monthOptions = $this->monthOptions();
+        $rules = [
+            'type' => ['required', 'string', Rule::in(array_keys($typeLabels))],
+            'pegawai_id' => ['required', 'integer', 'exists:pegawais,id'],
+            'tahun' => ['required', 'integer', 'min:2000', 'max:' . (date('Y') + 5)],
+            'bulan' => ['required', 'integer', Rule::in(array_keys($monthOptions))],
+        ] + $this->monetaryValidationRules();
+
+        $validated = $request->validate($rules);
+        $selectedType = $this->resolveType($validated['type']);
+        $pegawai = $this->findPegawaiForUser((int) $validated['pegawai_id'], $currentUser);
+        $this->ensurePegawaiMatchesType($pegawai, $selectedType);
+
+        $duplicateExists = Gaji::query()
+            ->where('pegawai_id', $pegawai->id)
+            ->where('tahun', (int) $validated['tahun'])
+            ->where('bulan', (int) $validated['bulan'])
+            ->exists();
+
+        if ($duplicateExists) {
+            throw ValidationException::withMessages([
+                'pegawai_id' => 'Data gaji untuk pegawai dan periode ini sudah ada.',
+            ]);
+        }
+
+        $monetaryValues = array_map(
+            fn (float $amount) => round($amount, 2),
+            $this->extractMonetaryValues($request)
+        );
+
+        $familyAllowance = ($monetaryValues['perhitungan_suami_istri'] ?? 0.0)
+            + ($monetaryValues['perhitungan_anak'] ?? 0.0);
+        $monetaryValues['tunjangan_keluarga'] = round($familyAllowance, 2);
+
+        $data = array_merge([
+            'pegawai_id' => $pegawai->id,
+            'jenis_asn' => $this->resolveJenisAsnForPegawai($selectedType, $pegawai),
+            'tahun' => (int) $validated['tahun'],
+            'bulan' => (int) $validated['bulan'],
+        ], $monetaryValues);
+
+        try {
+            Gaji::create($data);
+        } catch (QueryException $exception) {
+            throw ValidationException::withMessages([
+                'pegawai_id' => 'Data gaji untuk pegawai dan periode ini sudah ada.',
+            ]);
+        }
+
+        return redirect()->route('gajis.index', [
+            'type' => $selectedType,
+            'tahun' => $data['tahun'],
+            'bulan' => $data['bulan'],
+        ])->with('status', 'Data gaji berhasil ditambahkan.');
+    }
+
+    public function show(Request $request, Gaji $gaji): View
+    {
+        $currentUser = $request->user();
+        abort_unless($currentUser->isSuperAdmin() || $currentUser->isAdminUnit(), 403);
+
+        $gaji->loadMissing(['pegawai.skpd']);
+        $this->ensureCanManageGaji($gaji, $currentUser);
+
+        return view('gajis.show', [
+            'gaji' => $gaji,
+        ]);
+    }
+
+    public function edit(Request $request, Gaji $gaji): View
+    {
+        $currentUser = $request->user();
+        abort_unless($currentUser->isSuperAdmin() || $currentUser->isAdminUnit(), 403);
+
+        $gaji->loadMissing('pegawai');
+        $this->ensureCanManageGaji($gaji, $currentUser);
+
+        $selectedType = $this->resolveType($request->query('type', $gaji->jenis_asn));
+        $monthOptions = $this->monthOptions();
+
+        return view('gajis.edit', [
+            'gaji' => $gaji,
+            'selectedType' => $selectedType,
+            'typeLabels' => $this->typeLabels(),
+            'monthOptions' => $monthOptions,
+            'defaultYear' => $gaji->tahun,
+            'defaultMonth' => $gaji->bulan,
+            'pegawaiOptions' => $this->pegawaiOptionsForType($selectedType, $currentUser, $gaji->pegawai),
+            'monetaryFields' => $this->monetaryFields(),
+        ]);
+    }
+
+    public function update(Request $request, Gaji $gaji): RedirectResponse
+    {
+        $currentUser = $request->user();
+        abort_unless($currentUser->isSuperAdmin() || $currentUser->isAdminUnit(), 403);
+
+        $gaji->loadMissing('pegawai');
+        $this->ensureCanManageGaji($gaji, $currentUser);
+
+        $typeLabels = $this->typeLabels();
+        $monthOptions = $this->monthOptions();
+        $rules = [
+            'type' => ['required', 'string', Rule::in(array_keys($typeLabels))],
+            'pegawai_id' => ['required', 'integer', 'exists:pegawais,id'],
+            'tahun' => ['required', 'integer', 'min:2000', 'max:' . (date('Y') + 5)],
+            'bulan' => ['required', 'integer', Rule::in(array_keys($monthOptions))],
+        ] + $this->monetaryValidationRules();
+
+        $validated = $request->validate($rules);
+        $selectedType = $this->resolveType($validated['type']);
+        $pegawai = $this->findPegawaiForUser((int) $validated['pegawai_id'], $currentUser);
+        $this->ensurePegawaiMatchesType($pegawai, $selectedType);
+
+        $duplicateExists = Gaji::query()
+            ->where('pegawai_id', $pegawai->id)
+            ->where('tahun', (int) $validated['tahun'])
+            ->where('bulan', (int) $validated['bulan'])
+            ->where('id', '<>', $gaji->id)
+            ->exists();
+
+        if ($duplicateExists) {
+            throw ValidationException::withMessages([
+                'pegawai_id' => 'Data gaji untuk pegawai dan periode ini sudah ada.',
+            ]);
+        }
+
+        $monetaryValues = array_map(
+            fn (float $amount) => round($amount, 2),
+            $this->extractMonetaryValues($request)
+        );
+
+        $familyAllowance = ($monetaryValues['perhitungan_suami_istri'] ?? 0.0)
+            + ($monetaryValues['perhitungan_anak'] ?? 0.0);
+        $monetaryValues['tunjangan_keluarga'] = round($familyAllowance, 2);
+
+        $data = array_merge([
+            'pegawai_id' => $pegawai->id,
+            'jenis_asn' => $this->resolveJenisAsnForPegawai($selectedType, $pegawai),
+            'tahun' => (int) $validated['tahun'],
+            'bulan' => (int) $validated['bulan'],
+        ], $monetaryValues);
+
+        try {
+            $gaji->update($data);
+        } catch (QueryException $exception) {
+            throw ValidationException::withMessages([
+                'pegawai_id' => 'Data gaji untuk pegawai dan periode ini sudah ada.',
+            ]);
+        }
+
+        return redirect()->route('gajis.index', [
+            'type' => $selectedType,
+            'tahun' => $data['tahun'],
+            'bulan' => $data['bulan'],
+        ])->with('status', 'Data gaji berhasil diperbarui.');
+    }
+
+    public function destroy(Request $request, Gaji $gaji): RedirectResponse
+    {
+        $currentUser = $request->user();
+        abort_unless($currentUser->isSuperAdmin() || $currentUser->isAdminUnit(), 403);
+
+        $gaji->loadMissing('pegawai');
+        $this->ensureCanManageGaji($gaji, $currentUser);
+
+        $redirectParams = array_filter([
+            'type' => $request->filled('type') ? $this->resolveType($request->input('type')) : $this->resolveType($gaji->jenis_asn),
+            'tahun' => $request->input('tahun', $gaji->tahun),
+            'bulan' => $request->input('bulan', $gaji->bulan),
+            'per_page' => $request->input('per_page'),
+            'search' => $request->input('search'),
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $gaji->delete();
+
+        return redirect()->route('gajis.index', $redirectParams)->with('status', 'Data gaji berhasil dihapus.');
+    }
+
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        $currentUser = $request->user();
+        abort_unless($currentUser->isSuperAdmin() || $currentUser->isAdminUnit(), 403);
+
+        $typeLabels = $this->typeLabels();
+        $monthOptions = $this->monthOptions();
+        $deleteAll = $request->boolean('delete_all');
+
+        if ($deleteAll) {
+            $validated = $request->validate([
+                'type' => ['required', 'string', Rule::in(array_keys($typeLabels))],
+                'tahun' => ['required', 'integer', 'min:2000', 'max:' . (date('Y') + 5)],
+                'bulan' => ['required', 'integer', Rule::in(array_keys($monthOptions))],
+            ]);
+
+            $selectedType = $this->resolveType($validated['type']);
+            $selectedYear = (int) $validated['tahun'];
+            $selectedMonth = (int) $validated['bulan'];
+
+            $query = Gaji::query()
+                ->whereIn('jenis_asn', $this->jenisAsnScope($selectedType))
+                ->where('tahun', $selectedYear)
+                ->where('bulan', $selectedMonth);
+
+            if (! $currentUser->isSuperAdmin()) {
+                $query->whereHas('pegawai', function ($sub) use ($currentUser) {
+                    $sub->where('skpd_id', $currentUser->skpd_id);
+                });
+            }
+
+            $total = (clone $query)->count();
+
+            $redirectParams = array_filter([
+                'type' => $selectedType,
+                'tahun' => $selectedYear,
+                'bulan' => $selectedMonth,
+                'per_page' => $request->input('per_page'),
+            ], fn ($value) => $value !== null && $value !== '');
+
+            if ($total === 0) {
+                return redirect()->route('gajis.index', $redirectParams)->with('status', 'Tidak ada data gaji yang dihapus.');
+            }
+
+            $deleted = $query->delete();
+
+            return redirect()->route('gajis.index', $redirectParams)->with('status', "Berhasil menghapus {$deleted} data gaji.");
+        }
+
+        $redirectParams = array_filter([
+            'type' => $request->filled('type') ? $this->resolveType($request->input('type')) : null,
+            'tahun' => $request->input('tahun'),
+            'bulan' => $request->input('bulan'),
+            'per_page' => $request->input('per_page'),
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $rawIds = $request->input('ids');
+        if (! is_array($rawIds) || empty($rawIds)) {
+            return redirect()->route('gajis.index', $redirectParams)->with('status', 'Pilih data gaji yang ingin dihapus.');
+        }
+
+        $validator = Validator::make($request->all(), [
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer', 'distinct', 'exists:gajis,id'],
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->route('gajis.index', $redirectParams)
+                ->withErrors($validator)
+                ->with('status', 'Tidak dapat menghapus data gaji terpilih.');
+        }
+
+        $ids = array_values(array_unique(array_map('intval', $validator->validated()['ids'])));
+
+        $query = Gaji::query()->whereIn('id', $ids);
+
+        if (! $currentUser->isSuperAdmin()) {
+            $query->whereHas('pegawai', function ($sub) use ($currentUser) {
+                $sub->where('skpd_id', $currentUser->skpd_id);
+            });
+        }
+
+        $deleted = $query->delete();
+        $notDeleted = count($ids) - $deleted;
+
+        if ($deleted === 0) {
+            return redirect()->route('gajis.index', $redirectParams)->with('status', 'Tidak ada data gaji yang dihapus.');
+        }
+
+        $message = "Berhasil menghapus {$deleted} data gaji terpilih.";
+        if ($notDeleted > 0) {
+            $message .= " {$notDeleted} data tidak dapat dihapus.";
+        }
+
+        return redirect()->route('gajis.index', $redirectParams)->with('status', $message);
+    }
+
+    public function export(Request $request): StreamedResponse
+    {
+        $typeLabels = $this->typeLabels();
+        $monthOptions = $this->monthOptions();
+
+        $validated = $request->validate([
+            'type' => ['required', 'string', Rule::in(array_keys($typeLabels))],
+            'tahun' => ['required', 'integer', 'min:2000', 'max:' . (date('Y') + 5)],
+            'bulan' => ['required', 'integer', Rule::in(array_keys($monthOptions))],
+        ]);
+
+        $selectedType = $this->resolveType($validated['type']);
+        $selectedYear = (int) $validated['tahun'];
+        $selectedMonth = (int) $validated['bulan'];
+        $allowanceFields = $this->allowanceFields();
+        $deductionFields = $this->deductionFields();
+        $monetaryLabels = $this->monetaryFields();
+
+        $export = new GajiExport(
+            $request->user(),
+            $selectedType,
+            $selectedYear,
+            $selectedMonth,
+            $this->exportHeadings($allowanceFields, $deductionFields),
+            $monetaryLabels,
+            $this->jenisAsnScope($selectedType),
+            $allowanceFields,
+            $deductionFields,
+            $this->tipeJabatanOptions(),
+            $this->statusAsnOptions(),
+            $this->statusPerkawinanOptions()
+        );
+
+        $rows = array_merge([
+            $export->headings(),
+        ], $export->rows());
+
+        $filename = sprintf(
+            'gaji-%s-%d-%s.xlsx',
+            $selectedType,
+            $selectedYear,
+            str_pad((string) $selectedMonth, 2, '0', STR_PAD_LEFT)
+        );
+
+        return $this->xlsxService->download($rows, $filename);
+    }
+
+    public function template(Request $request): StreamedResponse
+    {
+        $typeLabels = $this->typeLabels();
+        $monthOptions = $this->monthOptions();
+
+        $validated = $request->validate([
+            'type' => ['required', 'string', Rule::in(array_keys($typeLabels))],
+            'tahun' => ['required', 'integer', 'min:2000', 'max:' . (date('Y') + 5)],
+            'bulan' => ['required', 'integer', Rule::in(array_keys($monthOptions))],
+        ]);
+
+        $selectedType = $this->resolveType($validated['type']);
+        $allowanceFields = $this->allowanceFields();
+        $deductionFields = $this->deductionFields();
+
+        $template = new GajiTemplateExport(
+            $this->exportHeadings($allowanceFields, $deductionFields),
+            [$this->templateSampleRow($allowanceFields, $deductionFields)]
+        );
+
+        $rows = array_merge([
+            $template->headings(),
+        ], $template->rows());
+
+        $filename = sprintf('template-gaji-%s.xlsx', $selectedType);
+
+        return $this->xlsxService->download($rows, $filename);
+    }
+
+    public function import(Request $request): RedirectResponse
+    {
+        $currentUser = $request->user();
+        abort_unless($currentUser->isSuperAdmin() || $currentUser->isAdminUnit(), 403);
+
+        $typeLabels = $this->typeLabels();
+        $monthOptions = $this->monthOptions();
+
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx'],
+            'type' => ['required', 'string', Rule::in(array_keys($typeLabels))],
+            'tahun' => ['required', 'integer', 'min:2000', 'max:' . (date('Y') + 5)],
+            'bulan' => ['required', 'integer', Rule::in(array_keys($monthOptions))],
+        ]);
+
+        $selectedType = $this->resolveType($validated['type']);
+        $selectedYear = (int) $validated['tahun'];
+        $selectedMonth = (int) $validated['bulan'];
+
+        try {
+            $rows = $this->xlsxService->import($request->file('file'));
+            $importer = new GajiImport(
+                $currentUser,
+                $monthOptions,
+                $typeLabels,
+                $this->asnTypeMap(),
+                $this->monetaryFields(),
+                $selectedType,
+                $selectedYear,
+                $selectedMonth
+            );
+            $importer->import($rows);
+        } catch (ValidationException $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            throw ValidationException::withMessages([
+                'file' => $exception->getMessage(),
+            ]);
+        }
+
+        return redirect()->route('gajis.index', [
+            'type' => $selectedType,
+            'tahun' => $selectedYear,
+            'bulan' => $selectedMonth,
+        ])->with('status', 'Data gaji berhasil diimpor.');
+    }
+
     public function indexEbupot(Request $request): View
     {
         $currentUser = $request->user();
