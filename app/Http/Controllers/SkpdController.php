@@ -48,6 +48,7 @@ class SkpdController extends Controller
         ]);
 
         Skpd::create($payload);
+        Skpd::flushCache();
 
         return redirect()->route('skpds.index')->with('status', 'SKPD berhasil ditambahkan.');
     }
@@ -70,6 +71,7 @@ class SkpdController extends Controller
         ]);
 
         $skpd->update($payload);
+        Skpd::flushCache();
 
         return redirect()->route('skpds.index')->with('status', 'SKPD berhasil diperbarui.');
     }
@@ -106,6 +108,7 @@ class SkpdController extends Controller
         ]);
 
         $skpd->update($payload);
+        Skpd::flushCache();
 
         return redirect()->route('skpds.profile')->with('status', 'Profil instansi berhasil diperbarui.');
     }
@@ -119,6 +122,7 @@ class SkpdController extends Controller
         }
 
         $skpd->delete();
+        Skpd::flushCache();
 
         return redirect()->route('skpds.index')->with('status', 'SKPD berhasil dihapus.');
     }

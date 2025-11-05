@@ -56,11 +56,11 @@ class TppCalculationService
         $presensiKetidakhadiran = max(0.0, $this->number($input['presensi_ketidakhadiran'] ?? 0));
         $presensiPersentaseKetidakhadiran = $this->roundAmount(min(40.0, $presensiKetidakhadiran * 3));
         $presensiPersentaseKehadiran = $this->roundAmount(max(0.0, 40.0 - $presensiPersentaseKetidakhadiran));
-        $presensiNilai = $this->roundAmount($jumlahTpp * ($presensiPersentaseKehadiran / 100));
+        $presensiNilai = $this->roundCurrency($jumlahTpp * ($presensiPersentaseKehadiran / 100));
 
         $kinerjaPersentaseInput = $input['kinerja_persen'] ?? 60;
         $kinerjaPersentase = $this->roundAmount(max(0.0, min(60.0, $this->number($kinerjaPersentaseInput))));
-        $kinerjaNilai = $this->roundAmount($jumlahTpp * ($kinerjaPersentase / 100));
+        $kinerjaNilai = $this->roundCurrency($jumlahTpp * ($kinerjaPersentase / 100));
 
         $pfkPph21 = $this->number($input['pfk_pph21'] ?? 0);
         $pfkBpjs4 = $this->number($input['pfk_bpjs4'] ?? 0);
@@ -152,11 +152,11 @@ class TppCalculationService
                 'ketidakhadiran' => (int) $calculation->presensi_ketidakhadiran,
                 'persentase_ketidakhadiran' => $this->number($calculation->presensi_persen_ketidakhadiran),
                 'persentase_kehadiran' => $this->number($calculation->presensi_persen_kehadiran),
-                'nilai' => $this->number($calculation->presensi_nilai),
+                'nilai' => round((float) $calculation->presensi_nilai),
             ],
             'kinerja' => [
                 'persentase' => $this->number($calculation->kinerja_persen),
-                'nilai' => $this->number($calculation->kinerja_nilai),
+                'nilai' => round((float) $calculation->kinerja_nilai),
             ],
             'bruto' => $this->number($calculation->bruto),
             'pfk' => [
@@ -194,8 +194,8 @@ class TppCalculationService
             $totals['kondisi_kerja'] += $this->number($calculation->kondisi_kerja);
             $totals['jumlah_tpp'] += $this->number($calculation->jumlah_tpp);
             $totals['bruto'] += $this->number($calculation->bruto);
-            $totals['presensi_nilai'] += $this->number($calculation->presensi_nilai);
-            $totals['kinerja_nilai'] += $this->number($calculation->kinerja_nilai);
+            $totals['presensi_nilai'] += round((float) $calculation->presensi_nilai);
+            $totals['kinerja_nilai'] += round((float) $calculation->kinerja_nilai);
             $totals['pfk_pph21'] += $this->number($calculation->pfk_pph21);
             $totals['pfk_bpjs4'] += $this->number($calculation->pfk_bpjs4);
             $totals['pfk_bpjs1'] += $this->number($calculation->pfk_bpjs1);
@@ -232,6 +232,11 @@ class TppCalculationService
     private function roundAmount(float $value): float
     {
         return round($value, 2);
+    }
+
+    private function roundCurrency(float $value): float
+    {
+        return round($value);
     }
 
     private function clampPercentage($value, float $default): float

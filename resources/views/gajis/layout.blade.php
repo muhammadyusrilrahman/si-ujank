@@ -1,7 +1,34 @@
 @extends('layouts.app')
 
+@push('styles')
+<style>
+    .gaji-layout .card-tools {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .gaji-layout .card-tools form {
+        margin: 0;
+    }
+
+    .gaji-layout .btn {
+        font-size: 0.75rem !important;
+        padding: 0.35rem 0.75rem !important;
+        border-radius: 0.4rem !important;
+        font-weight: 500;
+    }
+
+    .gaji-layout .btn i {
+        font-size: 0.8rem;
+        margin-right: 0.35rem;
+    }
+</style>
+@endpush
+
 @section('content')
-<div class="container-fluid">
+<div class="container-fluid gaji-layout">
     <div class="row">
         <div class="col-12">
             <div class="card">

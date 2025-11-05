@@ -8,16 +8,17 @@
             'type' => request('type'),
             'tahun' => request('tahun'),
             'bulan' => request('bulan'),
+            'skpd_id' => request('skpd_id'),
         ], fn ($value) => $value !== null && $value !== '');
     @endphp
     <a href="{{ route('tpps.index', $cardFilterParams) }}" class="btn btn-secondary btn-sm">
         <i class="fas fa-arrow-left"></i> Kembali ke Data TPP
     </a>
-    <a href="{{ route('tpps.perhitungan.template') }}" class="btn btn-outline-secondary btn-sm">
+    <a href="{{ route('tpps.perhitungan.template') }}" class="btn btn-outline-secondary btn-sm" data-no-loader="true">
         <i class="fas fa-file-download"></i> Unduh Template
     </a>
     @if ($filtersReady ?? false)
-        <a href="{{ route('tpps.perhitungan.export', $cardFilterParams) }}" class="btn btn-outline-primary btn-sm">
+        <a href="{{ route('tpps.perhitungan.export', $cardFilterParams) }}" class="btn btn-outline-primary btn-sm" data-no-loader="true">
             <i class="fas fa-file-export"></i> Export Excel
         </a>
     @endif
@@ -49,6 +50,7 @@
         const rows = Array.from(document.querySelectorAll('.calc-row'));
         const extraFields = @json($extraKeysForScript);
         const percentFields = ['presensi_persen_ketidakhadiran', 'presensi_persen_kehadiran', 'kinerja_persen'];
+        const currencyOutputFields = new Set(['presensi_nilai', 'kinerja_nilai']);
 
         function toNumber(value) {
             const parsed = Number.parseFloat(value);
@@ -80,9 +82,18 @@
             };
             const setOutput = (field, value) => {
                 const input = row.querySelector(`.calc-output[data-field="${field}"]`);
-                if (input) {
-                    input.value = value.toFixed(2);
+                if (!input) {
+                    return value;
                 }
+
+                if (currencyOutputFields.has(field)) {
+                    const rounded = Math.round(value);
+                    input.value = String(rounded);
+                    return rounded;
+                }
+
+                input.value = value.toFixed(2);
+                return value;
             };
             const setDisplay = (field, value) => {
                 const span = row.querySelector(`.calc-display[data-field="${field}"]`);
@@ -110,7 +121,7 @@
             }
             const absentPercent = Math.min(40, absentCount * 3);
             const presencePercent = Math.max(0, 40 - absentPercent);
-            const presenceValue = jumlahTpp * (presencePercent / 100);
+            const presenceValueRaw = jumlahTpp * (presencePercent / 100);
 
             let kinerjaPercent = getInput('kinerja_persen');
             if (kinerjaPercent < 0) {
@@ -122,19 +133,20 @@
             if (kinerjaInput) {
                 kinerjaInput.value = kinerjaPercent.toFixed(2);
             }
-            const kinerjaValue = jumlahTpp * (kinerjaPercent / 100);
+            const kinerjaValueRaw = jumlahTpp * (kinerjaPercent / 100);
 
             const pfkPph21 = getInput('pfk_pph21');
             const pfkBpjs4 = getInput('pfk_bpjs4');
             const pfkBpjs1 = getInput('pfk_bpjs1');
+
+            const presenceValue = setOutput('presensi_nilai', presenceValueRaw);
+            const kinerjaValue = setOutput('kinerja_nilai', kinerjaValueRaw);
 
             const bruto = presenceValue + kinerjaValue + pfkPph21 + pfkBpjs4;
             const netto = bruto - (pfkPph21 + pfkBpjs4 + pfkBpjs1);
 
             setOutput('presensi_persen_ketidakhadiran', absentPercent);
             setOutput('presensi_persen_kehadiran', presencePercent);
-            setOutput('presensi_nilai', presenceValue);
-            setOutput('kinerja_nilai', kinerjaValue);
             setDisplay('jumlah_tpp', jumlahTpp);
             setDisplay('bruto', bruto);
             setDisplay('netto', netto);
@@ -454,13 +466,13 @@
                             <input type="number" min="0" max="40" step="0.01" class="form-control form-control-sm text-end calc-output" data-field="presensi_persen_kehadiran" name="presensi_persen_kehadiran" form="{{ $formId }}" value="{{ (float) ($row['presensi']['persentase_kehadiran'] ?? 0) }}" readonly>
                         </td>
                         <td class="text-end">
-                            <input type="number" min="0" step="0.01" class="form-control form-control-sm text-end calc-output" data-field="presensi_nilai" name="presensi_nilai" form="{{ $formId }}" value="{{ (float) ($row['presensi']['nilai'] ?? 0) }}" readonly>
+                            <input type="number" min="0" step="1" class="form-control form-control-sm text-end calc-output" data-field="presensi_nilai" name="presensi_nilai" form="{{ $formId }}" value="{{ (float) ($row['presensi']['nilai'] ?? 0) }}" readonly>
                         </td>
                         <td>
                             <input type="number" min="0" max="60" step="0.01" class="form-control form-control-sm calc-input text-end" data-field="kinerja_persen" name="kinerja_persen" form="{{ $formId }}" value="{{ (float) ($row['kinerja']['persentase'] ?? 60) }}">
                         </td>
                         <td class="text-end">
-                            <input type="number" min="0" step="0.01" class="form-control form-control-sm text-end calc-output" data-field="kinerja_nilai" name="kinerja_nilai" form="{{ $formId }}" value="{{ (float) ($row['kinerja']['nilai'] ?? 0) }}" readonly>
+                            <input type="number" min="0" step="1" class="form-control form-control-sm text-end calc-output" data-field="kinerja_nilai" name="kinerja_nilai" form="{{ $formId }}" value="{{ (float) ($row['kinerja']['nilai'] ?? 0) }}" readonly>
                         </td>
                         <td class="text-end"><span class="calc-display currency" data-field="bruto">{{ $formatCurrency((float) ($row['bruto'] ?? 0)) }}</span></td>
                         <td>
@@ -510,9 +522,9 @@
                         <th class="text-end"><span class="summary-cell" data-summary="presensi_ketidakhadiran">0,00</span></th>
                         <th class="text-end"><span class="summary-cell" data-summary="presensi_persen_ketidakhadiran">0,00</span></th>
                         <th class="text-end"><span class="summary-cell" data-summary="presensi_persen_kehadiran">0,00</span></th>
-                        <th class="text-end"><span class="summary-cell" data-summary="presensi_nilai">0,00</span></th>
+                        <th class="text-end"><span class="summary-cell" data-summary="presensi_nilai">0</span></th>
                         <th class="text-end"><span class="summary-cell" data-summary="kinerja_persen">0,00</span></th>
-                        <th class="text-end"><span class="summary-cell" data-summary="kinerja_nilai">0,00</span></th>
+                        <th class="text-end"><span class="summary-cell" data-summary="kinerja_nilai">0</span></th>
                         <th class="text-end"><span class="summary-cell" data-summary="bruto">0,00</span></th>
                         <th class="text-end"><span class="summary-cell" data-summary="pfk_pph21">0,00</span></th>
                         <th class="text-end"><span class="summary-cell" data-summary="pfk_bpjs4">0,00</span></th>
@@ -585,13 +597,29 @@
                         </div>
                         <div class="modal-body">
                             <input type="hidden" name="type" value="{{ $selectedType }}">
-                            <input type="hidden" name="tahun" value="{{ $selectedYear }}">
-                            <input type="hidden" name="bulan" value="{{ $selectedMonth }}">
-                            @if (! ($filtersReady ?? false))
-                                <div class="alert alert-warning">
-                                    Pilih jenis ASN, tahun, dan bulan terlebih dahulu sebelum melakukan import.
-                                </div>
-                            @endif
+                      <input type="hidden" name="tahun" value="{{ $selectedYear }}">
+                      <input type="hidden" name="bulan" value="{{ $selectedMonth }}">
+                      @if (auth()->user()->isSuperAdmin())
+                          <div class="mb-3">
+                              <label for="import-skpd" class="form-label">SKPD Tujuan</label>
+                              <select name="skpd_id" id="import-skpd" class="form-control @error('skpd_id') is-invalid @enderror">
+                                  <option value="" {{ ($selectedSkpdId ?? null) ? '' : 'selected' }}>Pilih SKPD (opsional)</option>
+                                  @foreach ($skpds ?? collect() as $skpd)
+                                      <option value="{{ $skpd->id }}" {{ (string) old('skpd_id', $selectedSkpdId ?? null) === (string) $skpd->id ? 'selected' : '' }}>
+                                          {{ $skpd->name }}
+                                      </option>
+                                  @endforeach
+                              </select>
+                              @error('skpd_id')
+                                  <div class="invalid-feedback">{{ $message }}</div>
+                              @enderror
+                          </div>
+                      @endif
+                      @if (! ($filtersReady ?? false))
+                          <div class="alert alert-warning">
+                              Pilih jenis ASN, tahun, dan bulan terlebih dahulu sebelum melakukan import.
+                          </div>
+                      @endif
                             <div class="mb-3">
                                 <label for="import-file" class="form-label">File Excel (.xlsx)</label>
                                 <input type="file" class="form-control" id="import-file" name="file" accept=".xlsx" required>

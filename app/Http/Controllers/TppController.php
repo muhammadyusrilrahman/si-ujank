@@ -11,6 +11,7 @@ use App\Models\EbupotReport;
 use App\Models\Pegawai;
 use App\Models\Tpp;
 use App\Models\User;
+use App\Models\Skpd;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Database\Eloquent\Builder;
@@ -36,6 +37,7 @@ class TppController extends Controller
 
     public function index(Request $request): View
     {
+        $currentUser = $request->user();
         $typeLabels = $this->typeLabels();
         $monthOptions = $this->monthOptions();
         $perPageOptions = $this->perPageOptions();
@@ -57,6 +59,9 @@ class TppController extends Controller
             $searchTerm = null;
         }
 
+        $totalTppFields = $this->totalTppFields();
+        $totalPotonganFields = $this->totalPotonganFields();
+
         $viewData = [
             'typeLabels' => $typeLabels,
             'selectedType' => $selectedType,
@@ -69,11 +74,12 @@ class TppController extends Controller
             'perPageOptions' => $perPageOptions,
             'allowanceFields' => $this->allowanceFields(),
             'deductionFields' => $this->deductionFields(),
+            'totalTppFields' => $totalTppFields,
+            'totalPotonganFields' => $totalPotonganFields,
+            'skpds' => $currentUser->isSuperAdmin() ? Skpd::cachedOptions() : collect(),
         ];
 
         if ($filtersReady) {
-            $currentUser = $request->user();
-
             $baseQuery = Tpp::query()
                 ->whereIn('jenis_asn', $this->jenisAsnScope($selectedType))
                 ->where('tahun', $selectedYear)
@@ -104,10 +110,8 @@ class TppController extends Controller
             $monetaryFieldKeys = array_keys($this->monetaryFields());
             $monetaryTotals = $this->aggregateMonetaryTotals($baseQuery, $monetaryFieldKeys);
 
-            $allowanceKeys = array_keys($viewData['allowanceFields']);
-            $deductionKeys = array_keys($viewData['deductionFields']);
-            $allowanceTotal = $this->sumTotalsByKey($monetaryTotals, $allowanceKeys);
-            $deductionTotal = $this->sumTotalsByKey($monetaryTotals, $deductionKeys);
+            $allowanceTotal = $this->sumTotalsByKey($monetaryTotals, $totalTppFields);
+            $deductionTotal = $this->sumTotalsByKey($monetaryTotals, $totalPotonganFields);
 
             $viewData['tpps'] = $tpps;
             $viewData['monetaryTotals'] = $monetaryTotals;
@@ -652,6 +656,8 @@ class TppController extends Controller
         $allowanceFields = $this->allowanceFields();
         $deductionFields = $this->deductionFields();
         $monetaryLabels = $this->monetaryFields();
+        $totalTppFields = $this->totalTppFields();
+        $totalPotonganFields = $this->totalPotonganFields();
 
         $export = new TppExport(
             $request->user(),
@@ -663,6 +669,8 @@ class TppController extends Controller
             $this->jenisAsnScope($selectedType),
             $allowanceFields,
             $deductionFields,
+            $totalTppFields,
+            $totalPotonganFields,
             $this->tipeJabatanOptions(),
             $this->statusAsnOptions(),
             $this->statusPerkawinanOptions()
@@ -724,11 +732,21 @@ class TppController extends Controller
             'type' => ['required', 'string', Rule::in(array_keys($typeLabels))],
             'tahun' => ['required', 'integer', 'min:2000', 'max:' . (date('Y') + 5)],
             'bulan' => ['required', 'integer', Rule::in(array_keys($monthOptions))],
+            'skpd_id' => ['nullable', 'integer', 'exists:skpds,id'],
         ]);
 
         $selectedType = $this->resolveType($validated['type']);
         $selectedYear = (int) $validated['tahun'];
         $selectedMonth = (int) $validated['bulan'];
+        $selectedSkpdId = $currentUser->isSuperAdmin()
+            ? ($validated['skpd_id'] ?? null)
+            : $currentUser->skpd_id;
+
+        if ($currentUser->isSuperAdmin() && $selectedSkpdId === null) {
+            return back()
+                ->withErrors(['skpd_id' => 'Pilih SKPD tujuan impor.'])
+                ->withInput($request->except('file'));
+        }
 
         try {
             $rows = $this->xlsxService->import($request->file('file'));
@@ -740,7 +758,8 @@ class TppController extends Controller
                 $this->monetaryFields(),
                 $selectedType,
                 $selectedYear,
-                $selectedMonth
+                $selectedMonth,
+                $selectedSkpdId !== null ? (int) $selectedSkpdId : null
             );
             $importer->import($rows);
         } catch (ValidationException $e) {
@@ -755,6 +774,7 @@ class TppController extends Controller
             'type' => $selectedType,
             'tahun' => $selectedYear,
             'bulan' => $selectedMonth,
+            'skpd_id' => $currentUser->isSuperAdmin() ? $selectedSkpdId : null,
         ])->with('status', 'Data TPP berhasil diimpor.');
     }
 
@@ -825,6 +845,40 @@ class TppController extends Controller
         }
 
         return $fields;
+    }
+
+    private function totalTppFields(): array
+    {
+        return [
+            'tpp_beban_kerja',
+            'tpp_tempat_bertugas',
+            'tpp_kondisi_kerja',
+            'tpp_kelangkaan_profesi',
+            'tpp_prestasi_kerja',
+            'tunjangan_pph',
+            'iuran_jaminan_kesehatan',
+            'iuran_jaminan_kecelakaan_kerja',
+            'iuran_jaminan_kematian',
+            'iuran_simpanan_tapera',
+            'iuran_pensiun',
+            'tunjangan_jaminan_hari_tua',
+        ];
+    }
+
+    private function totalPotonganFields(): array
+    {
+        return [
+            'iuran_jaminan_kesehatan',
+            'iuran_jaminan_kecelakaan_kerja',
+            'iuran_jaminan_kematian',
+            'iuran_simpanan_tapera',
+            'iuran_pensiun',
+            'tunjangan_jaminan_hari_tua',
+            'potongan_iwp',
+            'potongan_pph_21',
+            'zakat',
+            'bulog',
+        ];
     }
 
     private function allowanceFields(): array

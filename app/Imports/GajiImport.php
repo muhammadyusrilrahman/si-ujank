@@ -20,6 +20,7 @@ class GajiImport
     protected string $defaultType;
     protected int $defaultYear;
     protected int $defaultMonth;
+    protected ?int $defaultSkpdId;
 
     public function __construct(
         Authenticatable $user,
@@ -29,7 +30,8 @@ class GajiImport
         array $monetaryLabels,
         string $defaultType,
         int $defaultYear,
-        int $defaultMonth
+        int $defaultMonth,
+        ?int $defaultSkpdId = null
     ) {
         $this->user = $user;
         $this->typeLabels = $typeLabels;
@@ -38,6 +40,7 @@ class GajiImport
         $this->defaultType = $defaultType;
         $this->defaultYear = $defaultYear;
         $this->defaultMonth = $defaultMonth;
+        $this->defaultSkpdId = $defaultSkpdId;
 
         $this->monthNumberLookup = $monthOptions;
         $this->monthNameLookup = [];
@@ -107,7 +110,9 @@ class GajiImport
             $pegawaiQuery->where('nik', $nik);
         }
 
-        if (! $this->user->isSuperAdmin()) {
+        if ($this->defaultSkpdId !== null) {
+            $pegawaiQuery->where('skpd_id', $this->defaultSkpdId);
+        } elseif (! $this->user->isSuperAdmin()) {
             $pegawaiQuery->where('skpd_id', $this->user->skpd_id);
         }
 
@@ -140,6 +145,10 @@ class GajiImport
             throw new \InvalidArgumentException('Pegawai tidak ditemukan atau tidak sesuai dengan jenis ASN.');
         }
 
+        if ($this->defaultSkpdId !== null && (int) $pegawai->skpd_id !== $this->defaultSkpdId) {
+            throw new \InvalidArgumentException('Pegawai tidak termasuk dalam SKPD yang dipilih untuk impor.');
+        }
+
         $data = [
             'pegawai_id' => $pegawai->id,
             'jenis_asn' => $jenisAsn,
@@ -150,6 +159,9 @@ class GajiImport
         foreach (array_keys($this->monetaryLabels) as $field) {
             $data[$field] = $this->decimalValue($row->get($field), $field);
         }
+
+        $familyAllowance = ($data['perhitungan_suami_istri'] ?? 0.0) + ($data['perhitungan_anak'] ?? 0.0);
+        $data['tunjangan_keluarga'] = round($familyAllowance, 2);
 
         return $data;
     }

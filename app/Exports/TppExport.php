@@ -23,10 +23,16 @@ class TppExport
     protected array $allowanceFields;
     /** @var array<string,string> */
     protected array $deductionFields;
+    /** @var string[] */
+    protected array $totalTppFields;
+    /** @var string[] */
+    protected array $totalPotonganFields;
     /** @var array<string,string> */
     protected array $tipeJabatanOptions;
     /** @var array<string,string> */
     protected array $statusAsnOptions;
+    /** @var array<string,string> */
+    protected array $statusPerkawinanOptions;
 
     public function __construct(
         Authenticatable $user,
@@ -38,8 +44,11 @@ class TppExport
         array $jenisAsnScope,
         array $allowanceFields,
         array $deductionFields,
+        array $totalTppFields,
+        array $totalPotonganFields,
         array $tipeJabatanOptions,
-        array $statusAsnOptions
+        array $statusAsnOptions,
+        array $statusPerkawinanOptions
     ) {
         $this->user = $user;
         $this->type = $type;
@@ -50,8 +59,11 @@ class TppExport
         $this->jenisAsnScope = $jenisAsnScope;
         $this->allowanceFields = $allowanceFields;
         $this->deductionFields = $deductionFields;
+        $this->totalTppFields = $totalTppFields;
+        $this->totalPotonganFields = $totalPotonganFields;
         $this->tipeJabatanOptions = $tipeJabatanOptions;
         $this->statusAsnOptions = $statusAsnOptions;
+        $this->statusPerkawinanOptions = $statusPerkawinanOptions;
         $this->monetaryFieldOrder = array_keys($monetaryLabels);
     }
 
@@ -141,8 +153,8 @@ class TppExport
             $row[] = (float) $tpp->{$field};
         }
 
-        $totalAllowance = $this->sumFields($tpp, array_keys($this->allowanceFields));
-        $totalDeduction = $this->sumFields($tpp, array_keys($this->deductionFields));
+        $totalAllowance = $this->sumFields($tpp, $this->totalTppFields);
+        $totalDeduction = $this->sumFields($tpp, $this->totalPotonganFields);
         $row[] = $totalAllowance;
         $row[] = $totalDeduction;
         $row[] = $totalAllowance - $totalDeduction;

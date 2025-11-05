@@ -9,6 +9,7 @@ use App\Http\Controllers\Concerns\HandlesEbupot;
 use App\Models\Gaji;
 use App\Models\EbupotReport;
 use App\Models\Pegawai;
+use App\Models\Skpd;
 use App\Models\User;
 use App\Services\XlsxService;
 use Illuminate\Database\Eloquent\Builder;
@@ -35,6 +36,7 @@ class GajiController extends Controller
 
     public function index(Request $request): View
     {
+        $currentUser = $request->user();
         $typeLabels = $this->typeLabels();
         $monthOptions = $this->monthOptions();
         $perPageOptions = $this->perPageOptions();
@@ -45,6 +47,7 @@ class GajiController extends Controller
             'bulan' => ['nullable', 'integer', Rule::in(array_keys($monthOptions))],
             'per_page' => ['nullable', 'integer', Rule::in($perPageOptions)],
             'search' => ['nullable', 'string', 'max:255'],
+            'skpd_id' => ['nullable', 'integer', 'exists:skpds,id'],
         ]);
 
         $selectedYear = array_key_exists('tahun', $validated) ? (int) $validated['tahun'] : null;
@@ -56,6 +59,18 @@ class GajiController extends Controller
             $searchTerm = null;
         }
 
+        $selectedSkpdId = null;
+        if ($currentUser->isSuperAdmin()) {
+            $selectedSkpdId = array_key_exists('skpd_id', $validated) && $validated['skpd_id'] !== null
+                ? (int) $validated['skpd_id']
+                : null;
+        } else {
+            $selectedSkpdId = (int) $currentUser->skpd_id;
+        }
+
+        $totalAllowanceFields = $this->totalAllowanceFields();
+        $totalDeductionFields = $this->totalDeductionFields();
+
         $viewData = [
             'typeLabels' => $typeLabels,
             'selectedType' => $selectedType,
@@ -66,20 +81,22 @@ class GajiController extends Controller
             'searchTerm' => $searchTerm,
             'perPage' => $perPage,
             'perPageOptions' => $perPageOptions,
+            'monetaryFields' => $this->monetaryFields(),
             'allowanceFields' => $this->allowanceFields(),
             'deductionFields' => $this->deductionFields(),
+            'selectedSkpdId' => $selectedSkpdId,
+            'totalAllowanceFields' => $totalAllowanceFields,
+            'totalDeductionFields' => $totalDeductionFields,
         ];
 
         if ($filtersReady) {
-            $currentUser = $request->user();
-
             $baseQuery = Gaji::query()
                 ->whereIn('jenis_asn', $this->jenisAsnScope($selectedType))
                 ->where('tahun', $selectedYear)
                 ->where('bulan', $selectedMonth)
-                ->when(! $currentUser->isSuperAdmin(), function ($query) use ($currentUser) {
-                    $query->whereHas('pegawai', function ($sub) use ($currentUser) {
-                        $sub->where('skpd_id', $currentUser->skpd_id);
+                ->when($selectedSkpdId !== null, function ($query) use ($selectedSkpdId) {
+                    $query->whereHas('pegawai', function ($sub) use ($selectedSkpdId) {
+                        $sub->where('skpd_id', $selectedSkpdId);
                     });
                 })
                 ->when($searchTerm !== null, function ($query) use ($searchTerm) {
@@ -103,10 +120,8 @@ class GajiController extends Controller
             $monetaryFieldKeys = array_keys($this->monetaryFields());
             $monetaryTotals = $this->aggregateMonetaryTotals($baseQuery, $monetaryFieldKeys);
 
-            $allowanceKeys = array_keys($viewData['allowanceFields']);
-            $deductionKeys = array_keys($viewData['deductionFields']);
-            $allowanceTotal = $this->sumTotalsByKey($monetaryTotals, $allowanceKeys);
-            $deductionTotal = $this->sumTotalsByKey($monetaryTotals, $deductionKeys);
+            $allowanceTotal = $this->sumTotalsByKey($monetaryTotals, $totalAllowanceFields);
+            $deductionTotal = $this->sumTotalsByKey($monetaryTotals, $totalDeductionFields);
 
             $viewData['gajis'] = $gajis;
             $viewData['monetaryTotals'] = $monetaryTotals;
@@ -124,6 +139,8 @@ class GajiController extends Controller
                 'transfer' => 0.0,
             ];
         }
+
+        $viewData['skpds'] = $currentUser->isSuperAdmin() ? Skpd::cachedOptions() : collect();
 
         return view('gajis.index', $viewData);
     }
@@ -152,6 +169,8 @@ class GajiController extends Controller
             'defaultMonth' => $defaultMonth,
             'pegawaiOptions' => $this->pegawaiOptionsForType($selectedType, $currentUser),
             'monetaryFields' => $this->monetaryFields(),
+            'totalAllowanceFields' => $this->totalAllowanceFields(),
+            'totalDeductionFields' => $this->totalDeductionFields(),
         ]);
     }
 
@@ -250,6 +269,8 @@ class GajiController extends Controller
             'defaultMonth' => $gaji->bulan,
             'pegawaiOptions' => $this->pegawaiOptionsForType($selectedType, $currentUser, $gaji->pegawai),
             'monetaryFields' => $this->monetaryFields(),
+            'totalAllowanceFields' => $this->totalAllowanceFields(),
+            'totalDeductionFields' => $this->totalDeductionFields(),
         ]);
     }
 
@@ -451,20 +472,22 @@ class GajiController extends Controller
         $selectedType = $this->resolveType($validated['type']);
         $selectedYear = (int) $validated['tahun'];
         $selectedMonth = (int) $validated['bulan'];
-        $allowanceFields = $this->allowanceFields();
-        $deductionFields = $this->deductionFields();
         $monetaryLabels = $this->monetaryFields();
+        $totalAllowanceFields = $this->totalAllowanceFields();
+        $totalDeductionFields = $this->totalDeductionFields();
 
         $export = new GajiExport(
             $request->user(),
             $selectedType,
             $selectedYear,
             $selectedMonth,
-            $this->exportHeadings($allowanceFields, $deductionFields),
+            $this->exportHeadings($monetaryLabels),
             $monetaryLabels,
             $this->jenisAsnScope($selectedType),
-            $allowanceFields,
-            $deductionFields,
+            $this->allowanceFields(),
+            $this->deductionFields(),
+            $totalAllowanceFields,
+            $totalDeductionFields,
             $this->tipeJabatanOptions(),
             $this->statusAsnOptions(),
             $this->statusPerkawinanOptions()
@@ -496,12 +519,11 @@ class GajiController extends Controller
         ]);
 
         $selectedType = $this->resolveType($validated['type']);
-        $allowanceFields = $this->allowanceFields();
-        $deductionFields = $this->deductionFields();
+        $monetaryLabels = $this->monetaryFields();
 
         $template = new GajiTemplateExport(
-            $this->exportHeadings($allowanceFields, $deductionFields),
-            [$this->templateSampleRow($allowanceFields, $deductionFields)]
+            $this->exportHeadings($monetaryLabels),
+            [$this->templateSampleRow($monetaryLabels)]
         );
 
         $rows = array_merge([
@@ -526,11 +548,21 @@ class GajiController extends Controller
             'type' => ['required', 'string', Rule::in(array_keys($typeLabels))],
             'tahun' => ['required', 'integer', 'min:2000', 'max:' . (date('Y') + 5)],
             'bulan' => ['required', 'integer', Rule::in(array_keys($monthOptions))],
+            'skpd_id' => ['nullable', 'integer', 'exists:skpds,id'],
         ]);
 
         $selectedType = $this->resolveType($validated['type']);
         $selectedYear = (int) $validated['tahun'];
         $selectedMonth = (int) $validated['bulan'];
+        $selectedSkpdId = $currentUser->isSuperAdmin()
+            ? ($validated['skpd_id'] ?? null)
+            : $currentUser->skpd_id;
+
+        if ($currentUser->isSuperAdmin() && $selectedSkpdId === null) {
+            return back()
+                ->withErrors(['skpd_id' => 'Pilih SKPD tujuan impor.'])
+                ->withInput($request->except('file'));
+        }
 
         try {
             $rows = $this->xlsxService->import($request->file('file'));
@@ -542,7 +574,8 @@ class GajiController extends Controller
                 $this->monetaryFields(),
                 $selectedType,
                 $selectedYear,
-                $selectedMonth
+                $selectedMonth,
+                $selectedSkpdId !== null ? (int) $selectedSkpdId : null
             );
             $importer->import($rows);
         } catch (ValidationException $exception) {
@@ -557,6 +590,7 @@ class GajiController extends Controller
             'type' => $selectedType,
             'tahun' => $selectedYear,
             'bulan' => $selectedMonth,
+            'skpd_id' => $currentUser->isSuperAdmin() ? $selectedSkpdId : null,
         ])->with('status', 'Data gaji berhasil diimpor.');
     }
 
@@ -974,6 +1008,16 @@ class GajiController extends Controller
         return $fields;
     }
 
+    private function totalAllowanceFields(): array
+    {
+        return config('gaji.total_allowance_fields', []);
+    }
+
+    private function totalDeductionFields(): array
+    {
+        return config('gaji.total_deduction_fields', []);
+    }
+
     private function allowanceFields(): array
     {
         $fields = [];
@@ -1126,7 +1170,7 @@ class GajiController extends Controller
         return array_values(array_unique(array_map('strval', $values)));
     }
 
-    private function exportHeadings(array $allowanceFields, array $deductionFields): array
+    private function exportHeadings(array $monetaryLabels): array
     {
         return array_merge([
             'NIP Pegawai',
@@ -1150,14 +1194,14 @@ class GajiController extends Controller
             'Kode Bank',
             'Nama Bank',
             'Nomor Rekening Bank Pegawai',
-        ], array_values($allowanceFields), array_values($deductionFields), [
-            'Jumlah Gaji & Tunjangan',
+        ], array_values($monetaryLabels), [
+            'Jumlah Gaji dan Tunjangan',
             'Jumlah Potongan',
             'Jumlah Ditransfer',
         ]);
     }
 
-    private function templateSampleRow(array $allowanceFields, array $deductionFields): array
+    private function templateSampleRow(array $monetaryLabels): array
     {
         $row = [
             '',
@@ -1183,7 +1227,7 @@ class GajiController extends Controller
             '',
         ];
 
-        $row = array_merge($row, array_fill(0, count($allowanceFields) + count($deductionFields), 0.0));
+        $row = array_merge($row, array_fill(0, count($monetaryLabels), 0.0));
         $row[] = 0.0;
         $row[] = 0.0;
         $row[] = 0.0;

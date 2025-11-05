@@ -1,7 +1,10 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DigitalBookController;
+use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\GajiController;
+use App\Http\Controllers\VideoTutorialController;
 use App\Http\Controllers\TppController;
 use App\Http\Controllers\TppCalculationController;
 use App\Http\Controllers\PegawaiController;
@@ -16,9 +19,18 @@ Route::get('/captcha', [AuthController::class, 'captcha'])->name('captcha');
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     Route::get('/dashboard', [AuthController::class, 'dashboard'])->name('dashboard');
+    Route::get('/login-activities', [AuthController::class, 'loginActivities'])->name('login-activities.index');
+
+    Route::middleware('role:admin_unit')->group(function () {
+        Route::post('feedbacks', [FeedbackController::class, 'store'])->name('feedbacks.store');
+    });
 
     Route::middleware('role:super_admin')->group(function () {
         Route::resource('skpds', SkpdController::class)->except(['show']);
+        Route::resource('digital-books', \App\Http\Controllers\DigitalBookController::class)->except(['show']);
+        Route::resource('video-tutorials', \App\Http\Controllers\VideoTutorialController::class)->except(['show']);
+        Route::post('feedbacks/{feedback}/reply', [FeedbackController::class, 'reply'])->name('feedbacks.reply')->whereNumber('feedback');
+        Route::patch('feedbacks/{feedback}/toggle', [FeedbackController::class, 'toggle'])->name('feedbacks.toggle')->whereNumber('feedback');
     });
 
     Route::middleware('role:super_admin,admin_unit,user_regular')->group(function () {

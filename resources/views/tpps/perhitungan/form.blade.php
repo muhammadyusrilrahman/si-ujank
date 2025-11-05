@@ -236,7 +236,7 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label" for="presensi-nilai">Nilai Presensi (Rp)</label>
-                    <input type="number" min="0" step="0.01" class="form-control @error('presensi_nilai') is-invalid @enderror" id="presensi-nilai" name="presensi_nilai" value="{{ old('presensi_nilai', $payload->get('presensi_nilai', 0)) }}" readonly>
+                    <input type="number" min="0" step="1" class="form-control @error('presensi_nilai') is-invalid @enderror" id="presensi-nilai" name="presensi_nilai" value="{{ old('presensi_nilai', $payload->get('presensi_nilai', 0)) }}" readonly>
                     @error('presensi_nilai')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -253,7 +253,7 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label" for="kinerja-nilai">Nilai Kinerja (Rp)</label>
-                    <input type="number" min="0" step="0.01" class="form-control @error('kinerja_nilai') is-invalid @enderror" id="kinerja-nilai" name="kinerja_nilai" value="{{ old('kinerja_nilai', $payload->get('kinerja_nilai', 0)) }}" readonly>
+                    <input type="number" min="0" step="1" class="form-control @error('kinerja_nilai') is-invalid @enderror" id="kinerja-nilai" name="kinerja_nilai" value="{{ old('kinerja_nilai', $payload->get('kinerja_nilai', 0)) }}" readonly>
                     @error('kinerja_nilai')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -454,7 +454,7 @@
 
             const absentPercent = Math.min(40, absentCount * 3);
             const presencePercent = Math.max(0, 40 - absentPercent);
-            const presenceValue = jumlah * (presencePercent / 100);
+            const presenceValueRaw = jumlah * (presencePercent / 100);
 
             if (presensiPercentAbsentInput) {
                 presensiPercentAbsentInput.value = absentPercent.toFixed(2);
@@ -462,8 +462,9 @@
             if (presensiPercentPresenceInput) {
                 presensiPercentPresenceInput.value = presencePercent.toFixed(2);
             }
+            const presenceValue = Math.round(presenceValueRaw);
             if (presensiValueInput) {
-                presensiValueInput.value = presenceValue.toFixed(2);
+                presensiValueInput.value = String(presenceValue);
             }
 
             let kinerjaPercent = toNumber(kinerjaPercentInput?.value ?? 60);
@@ -475,9 +476,10 @@
             if (kinerjaPercentInput) {
                 kinerjaPercentInput.value = kinerjaPercent.toFixed(2);
             }
-            const kinerjaValue = jumlah * (kinerjaPercent / 100);
+            const kinerjaValueRaw = jumlah * (kinerjaPercent / 100);
+            const kinerjaValue = Math.round(kinerjaValueRaw);
             if (kinerjaValueInput) {
-                kinerjaValueInput.value = kinerjaValue.toFixed(2);
+                kinerjaValueInput.value = String(kinerjaValue);
             }
 
             const pfkPph = toNumber(pfkPphInput?.value ?? 0);

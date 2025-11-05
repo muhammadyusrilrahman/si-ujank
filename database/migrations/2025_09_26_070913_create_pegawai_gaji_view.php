@@ -60,8 +60,6 @@ SELECT
     gajis.bulog AS `Bulog`,
     (
         COALESCE(gajis.gaji_pokok, 0) +
-        COALESCE(gajis.perhitungan_suami_istri, 0) +
-        COALESCE(gajis.perhitungan_anak, 0) +
         COALESCE(gajis.tunjangan_keluarga, 0) +
         COALESCE(gajis.tunjangan_jabatan, 0) +
         COALESCE(gajis.tunjangan_fungsional, 0) +
@@ -69,8 +67,11 @@ SELECT
         COALESCE(gajis.tunjangan_beras, 0) +
         COALESCE(gajis.tunjangan_pph, 0) +
         COALESCE(gajis.pembulatan_gaji, 0) +
-        COALESCE(gajis.tunjangan_khusus_papua, 0) +
-        COALESCE(gajis.tunjangan_jaminan_hari_tua, 0)
+        COALESCE(gajis.iuran_jaminan_kesehatan, 0) +
+        COALESCE(gajis.iuran_jaminan_kecelakaan_kerja, 0) +
+        COALESCE(gajis.iuran_jaminan_kematian, 0) +
+        COALESCE(gajis.iuran_simpanan_tapera, 0) +
+        COALESCE(gajis.tunjangan_khusus_papua, 0)
     ) AS `Jumlah Gaji dan Tunjangan`,
     (
         COALESCE(gajis.iuran_jaminan_kesehatan, 0) +
@@ -78,6 +79,7 @@ SELECT
         COALESCE(gajis.iuran_jaminan_kematian, 0) +
         COALESCE(gajis.iuran_simpanan_tapera, 0) +
         COALESCE(gajis.iuran_pensiun, 0) +
+        COALESCE(gajis.tunjangan_jaminan_hari_tua, 0) +
         COALESCE(gajis.potongan_iwp, 0) +
         COALESCE(gajis.potongan_pph_21, 0) +
         COALESCE(gajis.zakat, 0) +
@@ -86,8 +88,6 @@ SELECT
     (
         (
             COALESCE(gajis.gaji_pokok, 0) +
-            COALESCE(gajis.perhitungan_suami_istri, 0) +
-            COALESCE(gajis.perhitungan_anak, 0) +
             COALESCE(gajis.tunjangan_keluarga, 0) +
             COALESCE(gajis.tunjangan_jabatan, 0) +
             COALESCE(gajis.tunjangan_fungsional, 0) +
@@ -95,8 +95,11 @@ SELECT
             COALESCE(gajis.tunjangan_beras, 0) +
             COALESCE(gajis.tunjangan_pph, 0) +
             COALESCE(gajis.pembulatan_gaji, 0) +
-            COALESCE(gajis.tunjangan_khusus_papua, 0) +
-            COALESCE(gajis.tunjangan_jaminan_hari_tua, 0)
+            COALESCE(gajis.iuran_jaminan_kesehatan, 0) +
+            COALESCE(gajis.iuran_jaminan_kecelakaan_kerja, 0) +
+            COALESCE(gajis.iuran_jaminan_kematian, 0) +
+            COALESCE(gajis.iuran_simpanan_tapera, 0) +
+            COALESCE(gajis.tunjangan_khusus_papua, 0)
         ) -
         (
             COALESCE(gajis.iuran_jaminan_kesehatan, 0) +
@@ -104,6 +107,7 @@ SELECT
             COALESCE(gajis.iuran_jaminan_kematian, 0) +
             COALESCE(gajis.iuran_simpanan_tapera, 0) +
             COALESCE(gajis.iuran_pensiun, 0) +
+            COALESCE(gajis.tunjangan_jaminan_hari_tua, 0) +
             COALESCE(gajis.potongan_iwp, 0) +
             COALESCE(gajis.potongan_pph_21, 0) +
             COALESCE(gajis.zakat, 0) +

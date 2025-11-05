@@ -46,8 +46,8 @@ class UserController extends Controller
         }
 
         $skpds = $currentUser->isSuperAdmin()
-            ? Skpd::orderBy('name')->get()
-            : Skpd::where('id', $currentUser->skpd_id)->get();
+            ? Skpd::cachedOptions()
+            : Skpd::cachedOptions()->where('id', $currentUser->skpd_id)->values();
 
         $roleOptions = $currentUser->isSuperAdmin()
             ? [
@@ -84,9 +84,9 @@ class UserController extends Controller
         ]);
 
         if ($currentUser->isSuperAdmin()) {
-            if (empty($validated['skpd_id'])) {
+            if (in_array($validated['role'], [User::ROLE_ADMIN_UNIT, User::ROLE_USER_REGULAR], true) && empty($validated['skpd_id'])) {
                 return back()
-                    ->withErrors(['skpd_id' => 'SKPD wajib dipilih untuk pengguna baru.'])
+                    ->withErrors(['skpd_id' => 'SKPD wajib dipilih untuk peran tersebut.'])
                     ->withInput($request->except('password'));
             }
         } else {
@@ -127,8 +127,8 @@ class UserController extends Controller
         }
 
         $skpds = $currentUser->isSuperAdmin()
-            ? Skpd::orderBy('name')->get()
-            : Skpd::where('id', $currentUser->skpd_id)->get();
+            ? Skpd::cachedOptions()
+            : Skpd::cachedOptions()->where('id', $currentUser->skpd_id)->values();
 
         $roleOptions = $currentUser->isSuperAdmin()
             ? [
@@ -176,9 +176,9 @@ class UserController extends Controller
         ]);
 
         if ($currentUser->isSuperAdmin()) {
-            if (empty($validated['skpd_id'])) {
+            if (in_array($validated['role'], [User::ROLE_ADMIN_UNIT, User::ROLE_USER_REGULAR], true) && empty($validated['skpd_id'])) {
                 return back()
-                    ->withErrors(['skpd_id' => 'SKPD wajib dipilih.'])
+                    ->withErrors(['skpd_id' => 'SKPD wajib dipilih untuk peran tersebut.'])
                     ->withInput($request->except(['password', 'password_confirmation']));
             }
         } else {

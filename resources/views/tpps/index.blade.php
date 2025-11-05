@@ -24,8 +24,12 @@
     $tppCurrentCount = $tppsPaginator ? $tppsPaginator->count() : 0;
     $monetaryTotals = $monetaryTotals ?? [];
     $summaryTotals = $summaryTotals ?? ['allowance' => 0, 'deduction' => 0, 'transfer' => 0];
+    $totalTppFields = $totalTppFields ?? [];
+    $totalPotonganFields = $totalPotonganFields ?? [];
     $baseColumnCount = 2 + count($allowanceFields) + count($deductionFields) + 3;
     $columnCount = $baseColumnCount + ($canManageTpp ? 2 : 0);
+    $skpds = $skpds ?? collect();
+    $selectedSkpdId = old('skpd_id', request('skpd_id'));
 ?>
 <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
     <ul class="nav nav-pills mb-2 mb-md-0">
@@ -37,28 +41,42 @@
                     'bulan' => $selectedMonth,
                     'per_page' => $perPage === 25 ? null : $perPage,
                     'search' => $searchTerm,
-                ]))); ?>"><?php echo e($label); ?></a>
+                    'skpd_id' => request('skpd_id'),
+                ], fn ($value) => $value !== null && $value !== ''))); ?>"><?php echo e($label); ?></a>
             </li>
         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
     </ul>
     <div class="d-flex flex-wrap gap-2 justify-content-end">
         <?php if($filtersReady): ?>
-            <a href="<?php echo e(route('tpps.export', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth])); ?>" class="btn btn-success mb-2"><i class="fas fa-file-excel"></i> Ekspor Excel</a>
+            <a href="<?php echo e(route('tpps.export', array_filter(['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth, 'skpd_id' => request('skpd_id')], fn ($value) => $value !== null && $value !== ''))); ?>" class="btn btn-success mb-2" data-no-loader="true"><i class="fas fa-file-excel"></i> Ekspor Excel</a>
             <?php if($canManageTpp): ?>
-                <a href="<?php echo e(route('tpps.ebupot.index', array_filter(['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth]))); ?>" class="btn btn-outline-info mb-2"><i class="fas fa-clipboard-list"></i> Arsip E-Bupot</a>
-                <a href="<?php echo e(route('tpps.ebupot.create', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth])); ?>" class="btn btn-info mb-2"><i class="fas fa-file-export"></i> Buat E-Bupot</a>
+                <a href="<?php echo e(route('tpps.ebupot.index', array_filter(['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth, 'skpd_id' => request('skpd_id')], fn ($value) => $value !== null && $value !== ''))); ?>" class="btn btn-outline-info mb-2"><i class="fas fa-clipboard-list"></i> Arsip E-Bupot</a>
+                <a href="<?php echo e(route('tpps.ebupot.create', array_filter(['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth, 'skpd_id' => request('skpd_id')], fn ($value) => $value !== null && $value !== ''))); ?>" class="btn btn-info mb-2"><i class="fas fa-file-export"></i> Buat E-Bupot</a>
                 <button type="submit" class="btn btn-danger mb-2" id="tpp-bulk-delete-button" form="tpp-bulk-delete-form" formaction="<?php echo e(route('tpps.bulk-destroy')); ?>" formmethod="POST" formnovalidate name="delete_all" value="0" <?php echo e($tppCurrentCount === 0 ? 'disabled' : ''); ?>>
                     <i class="fas fa-trash"></i> Hapus Terpilih
                 </button>
                 <button type="submit" class="btn btn-danger mb-2" id="tpp-bulk-delete-all-button" form="tpp-bulk-delete-form" formaction="<?php echo e(route('tpps.bulk-destroy')); ?>" formmethod="POST" formnovalidate name="delete_all" value="1" <?php echo e($tppTotal === 0 ? 'disabled' : ''); ?>>
                     <i class="fas fa-trash-alt"></i> Hapus Semua
                 </button>
-                <a href="<?php echo e(route('tpps.template', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth])); ?>" class="btn btn-outline-secondary mb-2"><i class="fas fa-download"></i> Template</a>
+                <a href="<?php echo e(route('tpps.template', array_filter(['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth, 'skpd_id' => request('skpd_id')], fn ($value) => $value !== null && $value !== ''))); ?>" class="btn btn-outline-secondary mb-2" data-no-loader="true"><i class="fas fa-download"></i> Template</a>
                 <form action="<?php echo e(route('tpps.import')); ?>" method="POST" enctype="multipart/form-data" class="form-inline mb-2">
                     <?php echo csrf_field(); ?>
                     <input type="hidden" name="type" value="<?php echo e($selectedType); ?>">
                     <input type="hidden" name="tahun" value="<?php echo e($selectedYear); ?>">
                     <input type="hidden" name="bulan" value="<?php echo e($selectedMonth); ?>">
+                    <?php if($currentUser->isSuperAdmin()): ?>
+                        <div class="form-group mr-2 mb-2">
+                            <select name="skpd_id" class="custom-select custom-select-sm <?php echo e($errors->has('skpd_id') ? 'is-invalid' : ''); ?>">
+                                <option value="" <?php echo e($selectedSkpdId ? '' : 'selected'); ?>>Pilih SKPD (opsional)</option>
+                                <?php $__currentLoopData = $skpds; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $skpd): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($skpd->id); ?>" <?php echo e((string) $selectedSkpdId === (string) $skpd->id ? 'selected' : ''); ?>><?php echo e($skpd->name); ?></option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                            <?php if($errors->has('skpd_id')): ?>
+                                <div class="invalid-feedback d-block"><?php echo e($errors->first('skpd_id')); ?></div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
                     <div class="input-group">
                         <div class="custom-file">
                             <input type="file" name="file" class="custom-file-input" id="tpp-import-file" accept=".xlsx" required>
@@ -69,7 +87,7 @@
                         </div>
                     </div>
                 </form>
-                <a href="<?php echo e(route('tpps.create', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth])); ?>" class="btn btn-primary mb-2"><i class="fas fa-plus"></i> Tambah Data TPP <?php echo e($typeLabels[$selectedType] ?? strtoupper($selectedType)); ?></a>
+                <a href="<?php echo e(route('tpps.create', array_filter(['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth, 'skpd_id' => request('skpd_id')], fn ($value) => $value !== null && $value !== ''))); ?>" class="btn btn-primary mb-2"><i class="fas fa-plus"></i> Tambah Data TPP <?php echo e($typeLabels[$selectedType] ?? strtoupper($selectedType)); ?></a>
             <?php endif; ?>
         <?php else: ?>
             <div class="text-muted small mb-2">Pilih tahun dan bulan untuk mengakses ekspor, template, dan impor.</div>
@@ -103,6 +121,7 @@
         <input type="hidden" name="bulan" value="<?php echo e($selectedMonth); ?>">
         <input type="hidden" name="per_page" value="<?php echo e($perPage); ?>">
         <input type="hidden" name="search" value="<?php echo e($searchTerm); ?>">
+        <input type="hidden" name="skpd_id" value="<?php echo e(request('skpd_id')); ?>">
         <?php $__currentLoopData = request()->except(['ids', 'page', '_token', '_method', 'delete_all', 'type', 'tahun', 'bulan', 'per_page', 'search']); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $name => $value): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
             <input type="hidden" name="<?php echo e($name); ?>" value="<?php echo e($value); ?>">
         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
@@ -272,15 +291,15 @@ unset($__errorArgs, $__bag); ?>
                                 </td>
                             <?php endif; ?>
                             <?php
-                                $totalAllowance = 0;
-                                foreach ($allowanceFields as $field => $label) {
-                                    $totalAllowance += (float) $tpp->$field;
+                                $totalTppAmount = 0.0;
+                                foreach ($totalTppFields as $fieldKey) {
+                                    $totalTppAmount += (float) ($tpp->$fieldKey ?? 0.0);
                                 }
-                                $totalDeduction = 0;
-                                foreach ($deductionFields as $field => $label) {
-                                    $totalDeduction += (float) $tpp->$field;
+                                $totalPotonganAmount = 0.0;
+                                foreach ($totalPotonganFields as $fieldKey) {
+                                    $totalPotonganAmount += (float) ($tpp->$fieldKey ?? 0.0);
                                 }
-                                $transfer = $totalAllowance - $totalDeduction;
+                                $transfer = $totalTppAmount - $totalPotonganAmount;
                             ?>
                             <td>
                                 <div class="font-weight-bold"><?php echo e(optional($tpp->pegawai)->nama_lengkap); ?></div>
@@ -293,8 +312,8 @@ unset($__errorArgs, $__bag); ?>
                             <?php $__currentLoopData = $deductionFields; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $field => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                 <td><?php echo e($formatCurrency((float) $tpp->$field)); ?></td>
                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                            <td><?php echo e($formatCurrency($totalAllowance)); ?></td>
-                            <td><?php echo e($formatCurrency($totalDeduction)); ?></td>
+                            <td><?php echo e($formatCurrency($totalTppAmount)); ?></td>
+                            <td><?php echo e($formatCurrency($totalPotonganAmount)); ?></td>
                             <td><?php echo e($formatCurrency($transfer)); ?></td>
                             <?php if($canManageTpp): ?>
                                 <td class="text-center">

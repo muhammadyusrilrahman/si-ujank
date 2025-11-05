@@ -68,14 +68,6 @@ return [
             'label' => 'Pembulatan Gaji',
             'category' => 'allowance',
         ],
-        'tunjangan_khusus_papua' => [
-            'label' => 'Tunjangan Khusus Papua',
-            'category' => 'allowance',
-        ],
-        'tunjangan_jaminan_hari_tua' => [
-            'label' => 'Tunjangan Jaminan Hari Tua',
-            'category' => 'allowance',
-        ],
         'iuran_jaminan_kesehatan' => [
             'label' => 'Iuran Jaminan Kesehatan',
             'category' => 'deduction',
@@ -96,6 +88,14 @@ return [
             'label' => 'Iuran Pensiun',
             'category' => 'deduction',
         ],
+        'tunjangan_khusus_papua' => [
+            'label' => 'Tunjangan Khusus Papua',
+            'category' => 'allowance',
+        ],
+        'tunjangan_jaminan_hari_tua' => [
+            'label' => 'Tunjangan Jaminan Hari Tua',
+            'category' => 'allowance',
+        ],
         'potongan_iwp' => [
             'label' => 'Potongan IWP',
             'category' => 'deduction',
@@ -112,5 +112,32 @@ return [
             'label' => 'Bulog',
             'category' => 'deduction',
         ],
+    ],
+    'total_allowance_fields' => [
+        'gaji_pokok',
+        'tunjangan_keluarga',
+        'tunjangan_jabatan',
+        'tunjangan_fungsional',
+        'tunjangan_fungsional_umum',
+        'tunjangan_beras',
+        'tunjangan_pph',
+        'pembulatan_gaji',
+        'iuran_jaminan_kesehatan',
+        'iuran_jaminan_kecelakaan_kerja',
+        'iuran_jaminan_kematian',
+        'iuran_simpanan_tapera',
+        'tunjangan_khusus_papua',
+    ],
+    'total_deduction_fields' => [
+        'iuran_jaminan_kesehatan',
+        'iuran_jaminan_kecelakaan_kerja',
+        'iuran_jaminan_kematian',
+        'iuran_simpanan_tapera',
+        'iuran_pensiun',
+        'tunjangan_jaminan_hari_tua',
+        'potongan_iwp',
+        'potongan_pph_21',
+        'zakat',
+        'bulog',
     ],
 ];

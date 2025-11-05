@@ -58,6 +58,7 @@ class PegawaiController extends Controller
             'statusPerkawinanOptions' => $this->statusPerkawinanOptions(),
             'statusAsnOptions' => $this->statusAsnOptions(),
             'tipeJabatanOptions' => $this->tipeJabatanOptions(),
+            'skpds' => $currentUser->isSuperAdmin() ? Skpd::cachedOptions() : collect(),
         ]);
     }
 
@@ -67,8 +68,8 @@ class PegawaiController extends Controller
         abort_unless($currentUser->isSuperAdmin() || $currentUser->isAdminUnit(), 403);
 
         $skpds = $currentUser->isSuperAdmin()
-            ? Skpd::orderBy('name')->get()
-            : Skpd::where('id', $currentUser->skpd_id)->get();
+            ? Skpd::cachedOptions()
+            : Skpd::cachedOptions()->where('id', $currentUser->skpd_id)->values();
 
         return view('pegawais.create', [
             'skpds' => $skpds,
@@ -99,8 +100,8 @@ class PegawaiController extends Controller
         }
 
         $skpds = $currentUser->isSuperAdmin()
-            ? Skpd::orderBy('name')->get()
-            : Skpd::where('id', $currentUser->skpd_id)->get();
+            ? Skpd::cachedOptions()
+            : Skpd::cachedOptions()->where('id', $currentUser->skpd_id)->values();
 
         return view('pegawais.edit', [
             'pegawai' => $pegawai,
@@ -205,17 +206,25 @@ class PegawaiController extends Controller
 
     public function import(Request $request): RedirectResponse
     {
-        $request->validate([
+        $currentUser = $request->user();
+
+        $validated = $request->validate([
             'file' => ['required', 'file', 'mimes:xlsx'],
+            'skpd_id' => ['nullable', 'exists:skpds,id'],
         ]);
+
+        $targetSkpdId = $currentUser->isSuperAdmin()
+            ? ($validated['skpd_id'] !== null ? (int) $validated['skpd_id'] : null)
+            : (int) $currentUser->skpd_id;
 
         try {
             $rows = $this->xlsxService->import($request->file('file'));
             $importer = new PegawaiImport(
-                $request->user(),
+                $currentUser,
                 $this->tipeJabatanOptions(),
                 $this->statusAsnOptions(),
-                $this->statusPerkawinanOptions()
+                $this->statusPerkawinanOptions(),
+                $targetSkpdId
             );
             $importer->import($rows);
         } catch (ValidationException $e) {
@@ -370,9 +379,5 @@ class PegawaiController extends Controller
         ];
     }
 }
-
-
-
-
 
 

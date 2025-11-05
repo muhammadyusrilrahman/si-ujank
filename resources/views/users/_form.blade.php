@@ -30,9 +30,9 @@
     @enderror
 </div>
 <div class="form-group">
-    <label for="skpd_id">SKPD / Instansi</label>
-    <select name="skpd_id" id="skpd_id" class="form-control @error('skpd_id') is-invalid @enderror" {{ $currentUser->isSuperAdmin() ? '' : 'disabled' }} required>
-        <option value="" disabled {{ $selectedSkpd ? '' : 'selected' }}>Pilih SKPD</option>
+    <label for="skpd_id">SKPD / Instansi @if ($currentUser->isSuperAdmin())<small class="text-muted">(opsional untuk Super Admin)</small>@endif</label>
+    <select name="skpd_id" id="skpd_id" class="form-control @error('skpd_id') is-invalid @enderror" {{ $currentUser->isSuperAdmin() ? '' : 'disabled' }}>
+        <option value="" {{ $selectedSkpd ? '' : 'selected' }} {{ $currentUser->isSuperAdmin() ? '' : 'disabled' }}>Tidak terikat pada SKPD</option>
         @foreach ($skpds as $skpd)
             <option value="{{ $skpd->id }}" {{ (string) $selectedSkpd === (string) $skpd->id ? 'selected' : '' }}>{{ $skpd->name }}</option>
         @endforeach
@@ -70,4 +70,3 @@
     <label for="password_confirmation">Konfirmasi Password {{ $isEdit ? '(isi jika mengubah password)' : '' }}</label>
     <input type="password" name="password_confirmation" id="password_confirmation" class="form-control" {{ $isEdit ? '' : 'required' }}>
 </div>
-

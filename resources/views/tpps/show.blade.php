@@ -18,16 +18,48 @@
 @endsection
 
 @section('card-body')
-    @php\n        \ = \ ?? [];\n        \ = \ ?? [];\n        \ = \ ?? [];\n        \ = \->pegawai;
-        $allowanceTotal = 0;
-        $deductionTotal = 0;
-        foreach ($allowanceFields as $field => $label) {
-            $allowanceTotal += (float) $tpp->{$field};
+    @php
+        $totalTppFields = [
+            'tpp_beban_kerja',
+            'tpp_tempat_bertugas',
+            'tpp_kondisi_kerja',
+            'tpp_kelangkaan_profesi',
+            'tpp_prestasi_kerja',
+            'tunjangan_pph',
+            'iuran_jaminan_kesehatan',
+            'iuran_jaminan_kecelakaan_kerja',
+            'iuran_jaminan_kematian',
+            'iuran_simpanan_tapera',
+            'iuran_pensiun',
+            'tunjangan_jaminan_hari_tua',
+        ];
+
+        $totalPotonganFields = [
+            'iuran_jaminan_kesehatan',
+            'iuran_jaminan_kecelakaan_kerja',
+            'iuran_jaminan_kematian',
+            'iuran_simpanan_tapera',
+            'iuran_pensiun',
+            'tunjangan_jaminan_hari_tua',
+            'potongan_iwp',
+            'potongan_pph_21',
+            'zakat',
+            'bulog',
+        ];
+
+        $pegawai = $tpp->pegawai;
+        $totalTppAmount = 0.0;
+        foreach ($totalTppFields as $field) {
+            $totalTppAmount += (float) ($tpp->{$field} ?? 0.0);
         }
-        foreach ($deductionFields as $field => $label) {
-            $deductionTotal += (float) $tpp->{$field};
+
+        $totalPotonganAmount = 0.0;
+        foreach ($totalPotonganFields as $field) {
+            $totalPotonganAmount += (float) ($tpp->{$field} ?? 0.0);
         }
-        $transfer = $allowanceTotal - $deductionTotal;
+
+        $transfer = $totalTppAmount - $totalPotonganAmount;
+        $monthOptions = $monthOptions ?? config('tpp.months', config('gaji.months', []));
     @endphp
     <div class="row">
         <div class="col-md-6">
@@ -54,11 +86,11 @@
             <table class="table">
                 <tr>
                     <th style="width: 200px">Total Komponen TPP</th>
-                    <td>{{ \App\Support\MoneyFormatter::rupiah($allowanceTotal) }}</td>
+                    <td>{{ \App\Support\MoneyFormatter::rupiah($totalTppAmount) }}</td>
                 </tr>
                 <tr>
                     <th>Total Potongan</th>
-                    <td>{{ \App\Support\MoneyFormatter::rupiah($deductionTotal) }}</td>
+                    <td>{{ \App\Support\MoneyFormatter::rupiah($totalPotonganAmount) }}</td>
                 </tr>
                 <tr class="table-primary">
                     <th>Jumlah Ditransfer</th>

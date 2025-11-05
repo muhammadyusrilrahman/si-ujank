@@ -12,6 +12,7 @@
     $perPage = $perPage ?? 25;
     $perPageOptions = $perPageOptions ?? [25, 50, 100];
     $canManagePegawai = $currentUser->isSuperAdmin() || $currentUser->isAdminUnit();
+    $skpds = $skpds ?? collect();
     $dataColumnCount = 21;
     $columnCount = $dataColumnCount + ($canManagePegawai ? 2 : 0);
 @endphp
@@ -28,14 +29,27 @@
         </form>
     </div>
     <div class="col-lg-6 mt-3 mt-lg-0 d-flex justify-content-lg-end flex-wrap gap-2">
-        <a href="{{ route('pegawais.export') }}" class="btn btn-success mr-2"><i class="fas fa-file-excel"></i> Ekspor Excel</a>
+        <a href="{{ route('pegawais.export') }}" class="btn btn-success mr-2" data-no-loader="true"><i class="fas fa-file-excel"></i> Ekspor Excel</a>
         @if ($canManagePegawai)
             <button type="submit" class="btn btn-danger mr-2 mb-2" id="bulk-delete-button" form="bulk-delete-form" disabled>
                 <i class="fas fa-trash"></i> Hapus Terpilih
             </button>
-            <a href="{{ route('pegawais.template') }}" class="btn btn-outline-secondary mr-2 mb-2"><i class="fas fa-download"></i> Template</a>
+            <a href="{{ route('pegawais.template') }}" class="btn btn-outline-secondary mr-2 mb-2" data-no-loader="true"><i class="fas fa-download"></i> Template</a>
             <form action="{{ route('pegawais.import') }}" method="POST" enctype="multipart/form-data" class="form-inline mr-2 mb-2">
                 @csrf
+                @if ($currentUser->isSuperAdmin())
+                    <div class="form-group mr-2 mb-2">
+                        <select name="skpd_id" class="custom-select custom-select-sm @error('skpd_id') is-invalid @enderror">
+                            <option value="" {{ old('skpd_id') ? '' : 'selected' }}>Pilih SKPD (opsional)</option>
+                            @foreach ($skpds as $skpd)
+                                <option value="{{ $skpd->id }}" {{ (string) old('skpd_id') === (string) $skpd->id ? 'selected' : '' }}>{{ $skpd->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('skpd_id')
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
+                        @enderror
+                    </div>
+                @endif
                 <div class="input-group">
                     <div class="custom-file">
                         <input type="file" name="file" class="custom-file-input" id="pegawai-import-file" accept=".xlsx,.xls" required>
@@ -271,11 +285,6 @@
     });
 </script>
 @endpush
-
-
-
-
-
 
 
 

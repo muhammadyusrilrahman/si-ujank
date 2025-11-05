@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exports\TppCalculationTemplateExport;
 use App\Models\Pegawai;
+use App\Models\Skpd;
 use App\Models\TppCalculation;
 use App\Models\User;
 use App\Services\TppCalculationService;
@@ -111,6 +112,8 @@ class TppCalculationController extends Controller
             'calculations' => $calculations,
             'summary' => $summary,
             'extraFieldMap' => $this->calculationService->extraFieldMap(),
+            'skpds' => $currentUser->isSuperAdmin() ? Skpd::cachedOptions() : collect(),
+            'selectedSkpdId' => $currentUser->isSuperAdmin() ? $request->query('skpd_id') : $currentUser->skpd_id,
         ]);
     }
 
@@ -388,6 +391,17 @@ class TppCalculationController extends Controller
 
             $attributes = array_intersect_key($data, array_flip($columns));
 
+            $presensiNilai = round((float) ($attributes['presensi_nilai'] ?? 0));
+            $kinerjaNilai = round((float) ($attributes['kinerja_nilai'] ?? 0));
+            $pfkPph21 = (float) ($attributes['pfk_pph21'] ?? 0);
+            $pfkBpjs4 = (float) ($attributes['pfk_bpjs4'] ?? 0);
+            $pfkBpjs1 = (float) ($attributes['pfk_bpjs1'] ?? 0);
+
+            $attributes['presensi_nilai'] = $presensiNilai;
+            $attributes['kinerja_nilai'] = $kinerjaNilai;
+            $attributes['bruto'] = round($presensiNilai + $kinerjaNilai + $pfkPph21 + $pfkBpjs4, 2);
+            $attributes['netto'] = round($attributes['bruto'] - ($pfkPph21 + $pfkBpjs4 + $pfkBpjs1), 2);
+
             $attributes['pegawai_id'] = $source->pegawai_id;
             $attributes['jenis_asn'] = $targetType;
             $attributes['tahun'] = $targetYear;
@@ -445,12 +459,22 @@ class TppCalculationController extends Controller
             'bulan' => ['required', 'integer', Rule::in(array_keys($monthOptions))],
             'file' => ['required', 'file', 'mimes:xlsx,xls'],
             'overwrite' => ['nullable', 'boolean'],
+            'skpd_id' => ['nullable', 'integer', 'exists:skpds,id'],
         ]);
 
         $type = $this->resolveType($validated['type']);
         $year = (int) $validated['tahun'];
         $month = (int) $validated['bulan'];
         $overwrite = (bool) ($validated['overwrite'] ?? false);
+        $selectedSkpdId = $currentUser->isSuperAdmin()
+            ? ($validated['skpd_id'] ?? null)
+            : $currentUser->skpd_id;
+
+        if ($currentUser->isSuperAdmin() && $selectedSkpdId === null) {
+            return back()
+                ->withErrors(['skpd_id' => 'Pilih SKPD tujuan impor.'])
+                ->withInput($request->except('file'));
+        }
 
         $rows = $this->xlsxService->import($request->file('file'));
 
@@ -460,6 +484,7 @@ class TppCalculationController extends Controller
                     'type' => $type,
                     'tahun' => $year,
                     'bulan' => $month,
+                    'skpd_id' => $currentUser->isSuperAdmin() ? $selectedSkpdId : null,
                 ])
                 ->with('error', 'Berkas tidak memiliki data.');
         }
@@ -472,7 +497,7 @@ class TppCalculationController extends Controller
         foreach ($rows as $row) {
             $rowNumber++;
             try {
-                $mapped = $this->mapImportRow($row, $currentUser, $type, $year, $month);
+                $mapped = $this->mapImportRow($row, $currentUser, $type, $year, $month, $selectedSkpdId !== null ? (int) $selectedSkpdId : null);
                 $pegawai = $mapped['pegawai'];
                 $data = $this->prepareCalculationData(
                     $currentUser,
@@ -518,6 +543,7 @@ class TppCalculationController extends Controller
                 'type' => $type,
                 'tahun' => $year,
                 'bulan' => $month,
+                'skpd_id' => $currentUser->isSuperAdmin() ? $selectedSkpdId : null,
             ])
             ->with('success', $message);
     }
@@ -682,6 +708,8 @@ class TppCalculationController extends Controller
             'kinerja_persen' => ['nullable', 'numeric', 'min:0', 'max:60'],
             'kinerja_nilai' => ['nullable', 'numeric', 'min:0'],
             'pfk_pph21' => ['nullable', 'numeric', 'min:0'],
+            'pfk_bpjs4' => ['nullable', 'numeric', 'min:0'],
+            'pfk_bpjs1' => ['nullable', 'numeric', 'min:0'],
             'tanda_terima' => ['nullable', 'string', 'max:255'],
         ];
 
@@ -831,7 +859,7 @@ class TppCalculationController extends Controller
      * @param  array<string,mixed>  $row
      * @return array{validated:array<string,mixed>,pegawai:Pegawai}
      */
-    private function mapImportRow(array $row, Authenticatable $user, string $defaultType, int $defaultYear, int $defaultMonth): array
+    private function mapImportRow(array $row, Authenticatable $user, string $defaultType, int $defaultYear, int $defaultMonth, ?int $defaultSkpdId = null): array
     {
         $collection = collect($row);
         $jenisAsnValue = strtolower(trim((string) ($collection->get('jenis_asn') ?? '')));
@@ -854,13 +882,19 @@ class TppCalculationController extends Controller
             $pegawaiQuery->where('nik', $nik);
         }
 
-        if (! $user->isSuperAdmin()) {
+        if ($defaultSkpdId !== null) {
+            $pegawaiQuery->where('skpd_id', $defaultSkpdId);
+        } elseif (! $user->isSuperAdmin()) {
             $pegawaiQuery->where('skpd_id', $user->skpd_id);
         }
 
         $pegawai = $pegawaiQuery->first();
         if (! $pegawai) {
             throw new \InvalidArgumentException('Pegawai dengan NIP/NIK tersebut tidak ditemukan atau tidak berada pada SKPD Anda.');
+        }
+
+        if ($defaultSkpdId !== null && (int) $pegawai->skpd_id !== $defaultSkpdId) {
+            throw new \InvalidArgumentException('Pegawai tidak termasuk dalam SKPD yang dipilih untuk impor.');
         }
 
         if (! $this->pegawaiMatchesType($pegawai, $jenisAsn)) {

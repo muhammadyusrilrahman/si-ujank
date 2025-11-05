@@ -2,11 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DigitalBook;
+use App\Models\Feedback;
+use App\Models\Pegawai;
 use App\Models\Skpd;
 use App\Models\User;
+use App\Models\VideoTutorial;
+use App\Models\LoginActivity;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -21,7 +28,7 @@ class AuthController extends Controller
         $this->generateCaptcha($request);
 
         return view('auth.login', [
-            'skpdOptions' => Skpd::orderBy('name')->get(),
+            'skpdOptions' => Skpd::cachedOptions(),
         ]);
     }
 
@@ -32,7 +39,7 @@ class AuthController extends Controller
         $validated = $request->validate([
             'username' => ['required', 'string'],
             'password' => ['required', 'string'],
-            'skpd_id' => ['required', Rule::in($skpdIds)],
+            'skpd_id' => ['nullable', Rule::in($skpdIds)],
             'captcha' => ['required', 'string'],
         ], [
             'skpd_id.in' => 'Pilihan SKPD tidak valid.',
@@ -56,16 +63,41 @@ class AuthController extends Controller
                 ->withInput($request->except(['password', 'captcha']));
         }
 
-        if (! $user->isSuperAdmin() && (string) $user->skpd_id !== (string) $validated['skpd_id']) {
+        if (! $user->isSuperAdmin()) {
+            if (empty($validated['skpd_id'])) {
+                $this->generateCaptcha($request);
+
+                return back()
+                    ->withErrors(['skpd_id' => 'SKPD wajib dipilih.'])
+                    ->withInput($request->except(['password', 'captcha']));
+            }
+
+            if ((string) $user->skpd_id !== (string) $validated['skpd_id']) {
+                $this->generateCaptcha($request);
+
+                return back()
+                    ->withErrors(['skpd_id' => 'Anda tidak memiliki akses ke SKPD tersebut.'])
+                    ->withInput($request->except(['password', 'captcha']));
+            }
+        } elseif (! empty($validated['skpd_id']) && ! Skpd::whereKey($validated['skpd_id'])->exists()) {
             $this->generateCaptcha($request);
 
             return back()
-                ->withErrors(['skpd_id' => 'Anda tidak memiliki akses ke SKPD tersebut.'])
+                ->withErrors(['skpd_id' => 'Pilihan SKPD tidak valid.'])
                 ->withInput($request->except(['password', 'captcha']));
         }
 
         Auth::login($user);
         $request->session()->regenerate();
+
+        if (Schema::hasTable('login_activities')) {
+            LoginActivity::create([
+                'user_id' => $user->id,
+                'ip_address' => $request->ip(),
+                'user_agent' => substr((string) $request->userAgent(), 0, 500),
+                'created_at' => now(),
+            ]);
+        }
 
         return redirect()->route('dashboard');
     }
@@ -80,9 +112,130 @@ class AuthController extends Controller
         return redirect()->route('login');
     }
 
-    public function dashboard()
+    public function dashboard(Request $request)
     {
-        return view('welcome');
+        $user = $request->user();
+        $skpd = $user->skpd;
+        $skpdId = $skpd?->id;
+
+        if ($user->isSuperAdmin() && ! $skpdId) {
+            $scopeLabel = 'Semua SKPD';
+
+            $userCount = User::count();
+            $pegawaiPnsCpnsCount = Pegawai::whereIn('status_asn', ['1', '3'])->count();
+            $pegawaiPppkCount = Pegawai::where('status_asn', '2')->count();
+        } else {
+            $scopeLabel = $skpd?->name ?? 'SKPD Anda';
+
+            $userCount = User::where('skpd_id', $skpdId)->count();
+            $pegawaiPnsCpnsCount = Pegawai::where('skpd_id', $skpdId)
+                ->whereIn('status_asn', ['1', '3'])
+                ->count();
+            $pegawaiPppkCount = Pegawai::where('skpd_id', $skpdId)
+                ->where('status_asn', '2')
+                ->count();
+        }
+
+        $digitalBooks = collect();
+        if (Schema::hasTable('digital_books')) {
+            $digitalBooks = DigitalBook::query()
+                ->where('is_active', true)
+                ->latest()
+                ->limit(5)
+                ->get(['id', 'title', 'file_url', 'description']);
+        }
+
+        $videoTutorials = collect();
+        if (Schema::hasTable('video_tutorials')) {
+            $videoTutorials = VideoTutorial::query()
+                ->where('is_active', true)
+                ->latest()
+                ->limit(5)
+                ->get(['id', 'title', 'video_url', 'description']);
+        }
+
+        $loginActivities = collect();
+        if (Schema::hasTable('login_activities')) {
+            $loginHistoryQuery = LoginActivity::query()->with('user:id,name');
+
+            if (! $user->isSuperAdmin()) {
+                $loginHistoryQuery->where('user_id', $user->id);
+            }
+
+            $loginActivities = $loginHistoryQuery
+                ->latest('created_at')
+                ->limit(3)
+                ->get();
+        }
+
+        $feedbacks = collect();
+
+        if (Schema::hasTable('feedbacks')) {
+            if ($user->isSuperAdmin()) {
+                $feedbacks = Feedback::query()
+                    ->with(['author:id,name,skpd_id', 'author.skpd:id,name', 'replier:id,name'])
+                    ->latest('created_at')
+                    ->limit(10)
+                    ->get();
+            } elseif ($user->isAdminUnit()) {
+                $feedbacks = Feedback::query()
+                    ->with(['replier:id,name'])
+                    ->where('user_id', $user->id)
+                    ->where('is_active', true)
+                    ->latest('created_at')
+                    ->limit(10)
+                    ->get();
+            }
+        }
+
+        return view('welcome', [
+            'stats' => [
+                'users' => $userCount,
+                'pegawai_pns_cpns' => $pegawaiPnsCpnsCount,
+                'pegawai_pppk' => $pegawaiPppkCount,
+            ],
+            'skpdLabel' => $scopeLabel,
+            'digitalBooks' => $digitalBooks,
+            'videoTutorials' => $videoTutorials,
+            'loginActivities' => $loginActivities,
+            'feedbacks' => $feedbacks,
+            'isAdminUnit' => $user->isAdminUnit(),
+            'isSuperAdmin' => $user->isSuperAdmin(),
+        ]);
+    }
+
+    public function loginActivities(Request $request)
+    {
+        $user = $request->user();
+
+        if (! Schema::hasTable('login_activities')) {
+            $loginActivities = new LengthAwarePaginator(
+                collect(),
+                0,
+                15,
+                $request->integer('page', 1),
+                [
+                    'path' => $request->url(),
+                    'query' => $request->query(),
+                ]
+            );
+        } else {
+            $loginHistoryQuery = LoginActivity::query()->with('user:id,name');
+
+            if (! $user->isSuperAdmin()) {
+                $loginHistoryQuery->where('user_id', $user->id);
+            }
+
+            $loginActivities = $loginHistoryQuery
+                ->latest('created_at')
+                ->paginate(15)
+                ->withQueryString();
+        }
+
+        return view('login-activities.index', [
+            'loginActivities' => $loginActivities,
+            'isSuperAdmin' => $user->isSuperAdmin(),
+        ]);
     }
 
     public function captcha(Request $request)

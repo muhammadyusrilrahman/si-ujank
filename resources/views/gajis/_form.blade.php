@@ -20,37 +20,8 @@
         'tunjangan_keluarga' => ['perhitungan_suami_istri', 'perhitungan_anak'],
     ];
 
-    $totalGajiFields = [
-        'gaji_pokok',
-        'perhitungan_suami_istri',
-        'perhitungan_anak',
-        'tunjangan_keluarga',
-        'tunjangan_jabatan',
-        'tunjangan_fungsional',
-        'tunjangan_fungsional_umum',
-        'tunjangan_beras',
-        'tunjangan_pph',
-        'pembulatan_gaji',
-        'iuran_jaminan_kesehatan',
-        'iuran_jaminan_kecelakaan_kerja',
-        'iuran_jaminan_kematian',
-        'iuran_simpanan_tapera',
-        'iuran_pensiun',
-        'tunjangan_khusus_papua',
-        'tunjangan_jaminan_hari_tua',
-    ];
-
-    $totalPotonganFields = [
-        'iuran_jaminan_kesehatan',
-        'iuran_jaminan_kecelakaan_kerja',
-        'iuran_jaminan_kematian',
-        'iuran_simpanan_tapera',
-        'iuran_pensiun',
-        'potongan_iwp',
-        'potongan_pph_21',
-        'zakat',
-        'bulog',
-    ];
+    $totalGajiFields = $totalAllowanceFields ?? config('gaji.total_allowance_fields', []);
+    $totalPotonganFields = $totalDeductionFields ?? config('gaji.total_deduction_fields', []);
 
     $rawMonetaryInputs = [];
     $monetaryValues = [];
@@ -161,15 +132,15 @@
 <div class="bg-light rounded border p-3 mb-3">
     <div class="row text-center text-md-left">
         <div class="col-md-4 mb-3 mb-md-0">
-            <div class="font-weight-bold text-muted text-uppercase small">Total Gaji & Tunjangan</div>
+            <div class="font-weight-bold text-muted text-uppercase small">Jumlah Gaji dan Tunjangan</div>
             <div class="h5 mb-0" id="gaji-total-allowance">{{ \App\Support\MoneyFormatter::rupiah($initialTotals['allowance']) }}</div>
         </div>
         <div class="col-md-4 mb-3 mb-md-0">
-            <div class="font-weight-bold text-muted text-uppercase small">Total Potongan</div>
+            <div class="font-weight-bold text-muted text-uppercase small">Jumlah Potongan</div>
             <div class="h5 mb-0" id="gaji-total-deduction">{{ \App\Support\MoneyFormatter::rupiah($initialTotals['deduction']) }}</div>
         </div>
         <div class="col-md-4">
-            <div class="font-weight-bold text-muted text-uppercase small">Total Ditransfer</div>
+            <div class="font-weight-bold text-muted text-uppercase small">Jumlah Ditransfer</div>
             <div class="h5 mb-0" id="gaji-total-transfer">{{ \App\Support\MoneyFormatter::rupiah($initialTotals['transfer']) }}</div>
         </div>
     </div>

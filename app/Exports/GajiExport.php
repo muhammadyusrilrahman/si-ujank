@@ -23,6 +23,10 @@ class GajiExport
     protected array $allowanceFields;
     /** @var array<string,string> */
     protected array $deductionFields;
+    /** @var string[] */
+    protected array $totalAllowanceFields;
+    /** @var string[] */
+    protected array $totalDeductionFields;
     /** @var array<string,string> */
     protected array $tipeJabatanOptions;
     /** @var array<string,string> */
@@ -40,6 +44,8 @@ class GajiExport
         array $jenisAsnScope,
         array $allowanceFields,
         array $deductionFields,
+        array $totalAllowanceFields,
+        array $totalDeductionFields,
         array $tipeJabatanOptions,
         array $statusAsnOptions,
         array $statusPerkawinanOptions
@@ -53,6 +59,8 @@ class GajiExport
         $this->jenisAsnScope = $jenisAsnScope;
         $this->allowanceFields = $allowanceFields;
         $this->deductionFields = $deductionFields;
+        $this->totalAllowanceFields = $totalAllowanceFields;
+        $this->totalDeductionFields = $totalDeductionFields;
         $this->tipeJabatanOptions = $tipeJabatanOptions;
         $this->statusAsnOptions = $statusAsnOptions;
         $this->statusPerkawinanOptions = $statusPerkawinanOptions;
@@ -158,8 +166,8 @@ class GajiExport
             $row[] = (float) $gaji->{$field};
         }
 
-        $totalAllowance = $this->sumFields($gaji, array_keys($this->allowanceFields));
-        $totalDeduction = $this->sumFields($gaji, array_keys($this->deductionFields));
+        $totalAllowance = $this->sumFields($gaji, $this->totalAllowanceFields);
+        $totalDeduction = $this->sumFields($gaji, $this->totalDeductionFields);
         $row[] = $totalAllowance;
         $row[] = $totalDeduction;
         $row[] = $totalAllowance - $totalDeduction;

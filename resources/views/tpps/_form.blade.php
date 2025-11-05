@@ -16,15 +16,49 @@
     foreach ($monetaryMeta as $field => $meta) {
         $monetaryCategories[$field] = $meta['category'] ?? 'allowance';
     }
-    $initialTotals = ['allowance' => 0.0, 'deduction' => 0.0];
+
+    $totalTppFields = [
+        'tpp_beban_kerja',
+        'tpp_tempat_bertugas',
+        'tpp_kondisi_kerja',
+        'tpp_kelangkaan_profesi',
+        'tpp_prestasi_kerja',
+        'tunjangan_pph',
+        'iuran_jaminan_kesehatan',
+        'iuran_jaminan_kecelakaan_kerja',
+        'iuran_jaminan_kematian',
+        'iuran_simpanan_tapera',
+        'iuran_pensiun',
+        'tunjangan_jaminan_hari_tua',
+    ];
+
+    $totalPotonganFields = [
+        'iuran_jaminan_kesehatan',
+        'iuran_jaminan_kecelakaan_kerja',
+        'iuran_jaminan_kematian',
+        'iuran_simpanan_tapera',
+        'iuran_pensiun',
+        'tunjangan_jaminan_hari_tua',
+        'potongan_iwp',
+        'potongan_pph_21',
+        'zakat',
+        'bulog',
+    ];
+
+    $rawMonetaryInputs = [];
+    $monetaryValues = [];
     foreach ($monetaryFields as $field => $label) {
         $rawValue = old($field, optional($tpp)->$field);
-        $numericValue = is_numeric($rawValue) ? (float) $rawValue : 0.0;
-        if (($monetaryCategories[$field] ?? 'allowance') === 'deduction') {
-            $initialTotals['deduction'] += $numericValue;
-        } else {
-            $initialTotals['allowance'] += $numericValue;
-        }
+        $rawMonetaryInputs[$field] = $rawValue;
+        $monetaryValues[$field] = is_numeric($rawValue) ? (float) $rawValue : 0.0;
+    }
+
+    $initialTotals = ['allowance' => 0.0, 'deduction' => 0.0];
+    foreach ($totalTppFields as $field) {
+        $initialTotals['allowance'] += $monetaryValues[$field] ?? 0.0;
+    }
+    foreach ($totalPotonganFields as $field) {
+        $initialTotals['deduction'] += $monetaryValues[$field] ?? 0.0;
     }
     $initialTotals['transfer'] = $initialTotals['allowance'] - $initialTotals['deduction'];
 @endphp
@@ -71,8 +105,9 @@
 <div class="form-row">
     @foreach ($monetaryFields as $field => $label)
         @php
-            $rawValue = old($field, optional($tpp)->$field);
-            $displayValue = ($rawValue === null || $rawValue === '') ? '' : \App\Support\MoneyFormatter::rupiah($rawValue, 2, false);
+            $rawValue = $rawMonetaryInputs[$field] ?? null;
+            $numericRaw = is_numeric($rawValue) ? (float) $rawValue : null;
+            $displayValue = $numericRaw === null ? '' : \App\Support\MoneyFormatter::rupiah($numericRaw, 2, false);
         @endphp
         <div class="form-group col-md-4">
             <label for="{{ $field }}">{{ $label }}</label>
@@ -81,7 +116,7 @@
                 name="{{ $field }}"
                 id="{{ $field }}"
                 class="tpp-monetary-input"
-                value="{{ $rawValue === null || $rawValue === '' ? '' : $rawValue }}"
+                value="{{ $numericRaw === null ? '' : number_format($numericRaw, 2, '.', '') }}"
                 data-category="{{ $monetaryCategories[$field] ?? 'allowance' }}">
             <div class="input-group currency-input-group">
                 <div class="input-group-prepend">
@@ -126,6 +161,9 @@
             return;
         }
 
+        const totalTppFields = @json($totalTppFields);
+        const totalPotonganFields = @json($totalPotonganFields);
+
         const allowanceEl = document.getElementById('tpp-total-allowance');
         const deductionEl = document.getElementById('tpp-total-deduction');
         const transferEl = document.getElementById('tpp-total-transfer');
@@ -151,26 +189,41 @@
             return integerPart;
         };
 
+        const hiddenInputs = new Map();
+        inputs.forEach((input) => {
+            hiddenInputs.set(input.id, input);
+        });
+
+        const getHiddenNumeric = (field) => {
+            const hidden = hiddenInputs.get(field);
+            if (!hidden) {
+                return 0;
+            }
+            const value = Number.parseFloat(hidden.value);
+            return Number.isFinite(value) ? value : 0;
+        };
+
+        const setHiddenNumeric = (field, numericValue) => {
+            const hidden = hiddenInputs.get(field);
+            if (!hidden) {
+                return;
+            }
+            if (numericValue === null || !Number.isFinite(numericValue)) {
+                hidden.value = '';
+            } else {
+                hidden.value = numericValue.toFixed(2);
+            }
+        };
+
+        const sumFields = (fields) => fields.reduce((total, field) => total + getHiddenNumeric(field), 0);
+
         const updateTotals = () => {
-            let allowance = 0;
-            let deduction = 0;
+            const totalAllowance = sumFields(totalTppFields);
+            const totalDeduction = sumFields(totalPotonganFields);
+            const transfer = totalAllowance - totalDeduction;
 
-            inputs.forEach((input) => {
-                const category = input.dataset.category || 'allowance';
-                const value = Number.parseFloat(input.value);
-                const amount = Number.isFinite(value) ? value : 0;
-
-                if (category === 'deduction') {
-                    deduction += amount;
-                } else {
-                    allowance += amount;
-                }
-            });
-
-            const transfer = allowance - deduction;
-
-            if (allowanceEl) allowanceEl.textContent = formatRupiah(allowance);
-            if (deductionEl) deductionEl.textContent = formatRupiah(deduction);
+            if (allowanceEl) allowanceEl.textContent = formatRupiah(totalAllowance);
+            if (deductionEl) deductionEl.textContent = formatRupiah(totalDeduction);
             if (transferEl) transferEl.textContent = formatRupiah(transfer);
         };
 
@@ -183,11 +236,7 @@
             }
 
             const syncHidden = (numericValue) => {
-                if (numericValue === null) {
-                    hiddenInput.value = '';
-                } else {
-                    hiddenInput.value = numericValue.toFixed(2);
-                }
+                setHiddenNumeric(target, numericValue === null ? null : numericValue);
                 updateTotals();
             };
 

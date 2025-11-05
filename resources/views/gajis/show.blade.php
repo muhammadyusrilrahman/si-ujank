@@ -3,18 +3,16 @@
 @section('title', 'Detail Data Gaji')
 
 @section('card-tools')
-    <div class="btn-group">
-        <a href="{{ route('gajis.edit', $gaji) }}" class="btn btn-warning btn-sm">
-            <i class="fas fa-edit"></i> Edit
-        </a>
-        <form action="{{ route('gajis.destroy', $gaji) }}" method="POST" class="d-inline">
-            @csrf
-            @method('DELETE')
-            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Apakah Anda yakin ingin menghapus data ini?')">
-                <i class="fas fa-trash"></i> Hapus
-            </button>
-        </form>
-    </div>
+    <a href="{{ route('gajis.edit', $gaji) }}" class="btn btn-warning btn-sm">
+        <i class="fas fa-edit"></i> Edit
+    </a>
+    <form action="{{ route('gajis.destroy', $gaji) }}" method="POST" class="d-inline">
+        @csrf
+        @method('DELETE')
+        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Apakah Anda yakin ingin menghapus data ini?')">
+            <i class="fas fa-trash"></i> Hapus
+        </button>
+    </form>
 @endsection
 
 @section('card-body')
@@ -62,6 +60,8 @@
     </div>
 
     <div class="d-flex justify-content-end mt-3">
-        <a href="{{ route('gajis.index') }}" class="btn btn-secondary">Kembali</a>
+        <a href="{{ route('gajis.index') }}" class="btn btn-secondary btn-sm">
+            <i class="fas fa-arrow-left"></i> Kembali
+        </a>
     </div>
 @endsection

@@ -19,7 +19,7 @@
         </div>
     @endif
 
-    <form action="{{ route('tpps.ebupot.store') }}" method="POST" class="mt-3">
+    <form action="{{ route('tpps.ebupot.store') }}" method="POST" class="mt-3" data-no-loader="true">
         @csrf
         <input type="hidden" name="default_npwp_pemotong" value="{{ $defaultNpwpPemotong }}">
         <input type="hidden" name="default_id_tku" value="{{ $defaultIdTku }}">

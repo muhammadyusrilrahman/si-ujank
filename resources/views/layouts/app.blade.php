@@ -6,9 +6,54 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', config('app.name', 'Laravel'))</title>
 
+    <link rel="icon" type="image/png" href="{{ asset('SI-UJANK.png') }}">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+    <style>
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(2px);
+            z-index: 2000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease-in-out;
+            visibility: hidden;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+            visibility: visible;
+        }
+
+        .loading-overlay .spinner {
+            width: 3.5rem;
+            height: 3.5rem;
+            border: 0.4rem solid rgba(255, 255, 255, 0.28);
+            border-top-color: #ffffff;
+            border-radius: 50%;
+            animation: loader-spin 0.8s linear infinite;
+        }
+
+        .loading-overlay .loading-text {
+            margin-top: 1.25rem;
+            font-weight: 600;
+            color: #ffffff;
+            letter-spacing: 0.08em;
+        }
+
+        @keyframes loader-spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
     @stack('styles')
 </head>
 <body class="hold-transition sidebar-mini layout-fixed">
@@ -50,8 +95,9 @@
     </nav>
 
     <aside class="main-sidebar sidebar-dark-primary elevation-4">
-        <a href="{{ route('dashboard') }}" class="brand-link">
-            <span class="brand-text font-weight-light">{{ config('app.name', 'AdminLTE') }}</span>
+        <a href="{{ route('dashboard') }}" class="brand-link d-flex align-items-center">
+            <img src="{{ asset('SI-UJANK.png') }}" alt="{{ config('app.name', 'SI-UJANK') }}" style="height: 56px; width: auto; margin-right: 0.75rem;">
+            <span class="brand-text font-weight-light">{{ config('app.name', 'SI-UJANK') }}</span>
         </a>
         <div class="sidebar">
             <nav class="mt-2">
@@ -110,6 +156,40 @@
                                 <p>Perhitungan TPP</p>
                             </a>
                         </li>
+                        @if (auth()->user()->isSuperAdmin())
+                            @php
+                                $isPanduanActive = request()->routeIs('digital-books.*') || request()->routeIs('video-tutorials.*');
+                            @endphp
+                            <li class="nav-item has-treeview {{ $isPanduanActive ? 'menu-open' : '' }}">
+                                <a href="#" class="nav-link {{ $isPanduanActive ? 'active' : '' }}">
+                                    <i class="nav-icon fas fa-book-reader"></i>
+                                    <p>
+                                        Panduan
+                                        <i class="right fas fa-angle-left"></i>
+                                    </p>
+                                </a>
+                                <ul class="nav nav-treeview">
+                                    <li class="nav-item">
+                                        <a href="{{ route('digital-books.index') }}" class="nav-link {{ request()->routeIs('digital-books.*') ? 'active' : '' }}">
+                                            <i class="far fa-circle nav-icon"></i>
+                                            <p>Buku Panduan</p>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a href="{{ route('video-tutorials.index') }}" class="nav-link {{ request()->routeIs('video-tutorials.*') ? 'active' : '' }}">
+                                            <i class="far fa-circle nav-icon"></i>
+                                            <p>Video Tutorial</p>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </li>
+                        @endif
+                        <li class="nav-item">
+                            <a href="{{ route('login-activities.index') }}" class="nav-link {{ request()->routeIs('login-activities.*') ? 'active' : '' }}">
+                                <i class="nav-icon fas fa-history"></i>
+                                <p>Histori Login</p>
+                            </a>
+                        </li>
                     @endauth
                 </ul>
             </nav>
@@ -142,9 +222,92 @@
     </footer>
 </div>
 
+<div id="global-loading-overlay" class="loading-overlay" role="status" aria-live="polite" aria-label="Memuat halaman">
+    <div class="text-center">
+        <div class="spinner"></div>
+        <div class="loading-text">Memuat...</div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+<script>
+    (function () {
+        const overlay = document.getElementById('global-loading-overlay');
+        if (!overlay) {
+            return;
+        }
+
+        let skipOverlayOnce = false;
+
+        const requestSkipOverlay = () => {
+            skipOverlayOnce = true;
+        };
+
+        const showOverlay = () => {
+            overlay.classList.add('active');
+        };
+
+        const hideOverlay = () => {
+            overlay.classList.remove('active');
+        };
+
+        window.addEventListener('pageshow', hideOverlay);
+
+        document.addEventListener('DOMContentLoaded', hideOverlay, { once: true });
+
+        window.addEventListener('beforeunload', () => {
+            if (skipOverlayOnce) {
+                skipOverlayOnce = false;
+                return;
+            }
+            showOverlay();
+        });
+
+        document.addEventListener('click', (event) => {
+            const link = event.target.closest('a');
+            if (!link) {
+                return;
+            }
+
+            if (event.defaultPrevented) {
+                return;
+            }
+
+            if (link.target && link.target !== '_self') {
+                return;
+            }
+
+            if (link.hasAttribute('download') || link.getAttribute('href') === null) {
+                requestSkipOverlay();
+                return;
+            }
+
+            const href = link.getAttribute('href');
+            if (!href || href.startsWith('#') || href.startsWith('javascript:')) {
+                return;
+            }
+
+            if (link.dataset.noLoader === 'true') {
+                requestSkipOverlay();
+                return;
+            }
+
+            showOverlay();
+        });
+
+        document.addEventListener('submit', (event) => {
+            const form = event.target;
+            if (form.dataset.noLoader === 'true') {
+                requestSkipOverlay();
+                return;
+            }
+
+            showOverlay();
+        });
+    })();
+</script>
     @stack('scripts')
     @yield('inline-scripts')
 </body>

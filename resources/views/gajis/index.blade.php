@@ -14,6 +14,12 @@
     $searchTerm = $searchTerm ?? null;
     $perPage = $perPage ?? 25;
     $perPageOptions = $perPageOptions ?? [25, 50, 100];
+    if (! isset($monetaryFields) || ! is_array($monetaryFields) || empty($monetaryFields)) {
+        $monetaryFields = [];
+        foreach (config('gaji.monetary_fields', []) as $field => $meta) {
+            $monetaryFields[$field] = $meta['label'] ?? ucwords(str_replace('_', ' ', $field));
+        }
+    }
     $allowanceFields = $allowanceFields ?? [];
     $deductionFields = $deductionFields ?? [];
     $monetaryTotals = $monetaryTotals ?? [];
@@ -21,11 +27,15 @@
     $gajisPaginator = $gajis ?? null;
     $gajiTotal = $gajisPaginator ? $gajisPaginator->total() : 0;
     $gajiCurrentCount = $gajisPaginator ? $gajisPaginator->count() : 0;
-    $columnBase = 2 + count($allowanceFields) + count($deductionFields) + 3;
+    $totalAllowanceFields = $totalAllowanceFields ?? config('gaji.total_allowance_fields', []);
+    $totalPotonganFields = $totalDeductionFields ?? config('gaji.total_deduction_fields', []);
+    $columnBase = 2 + count($monetaryFields) + 3;
     $currentUser = auth()->user();
     $canManageGaji = $currentUser->isSuperAdmin() || $currentUser->isAdminUnit();
     $columnCount = $columnBase + ($canManageGaji ? 2 : 0);
     $formatCurrency = fn (float $value) => \App\Support\MoneyFormatter::rupiah($value);
+    $skpds = $skpds ?? collect();
+    $selectedSkpdId = old('skpd_id', request('skpd_id'));
 @endphp
 
 <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
@@ -39,16 +49,17 @@
                        'bulan' => $selectedMonth,
                        'per_page' => $perPage === 25 ? null : $perPage,
                        'search' => $searchTerm,
-                   ])) }}">{{ $label }}</a>
+                       'skpd_id' => request('skpd_id'),
+                   ], fn ($value) => $value !== null && $value !== '')) }}">{{ $label }}</a>
             </li>
         @endforeach
     </ul>
     <div class="d-flex flex-wrap gap-2 justify-content-end">
         @if ($filtersReady)
-            <a href="{{ route('gajis.export', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth]) }}" class="btn btn-success mb-2"><i class="fas fa-file-excel"></i> Ekspor Excel</a>
+            <a href="{{ route('gajis.export', array_filter(['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth, 'skpd_id' => request('skpd_id')], fn ($value) => $value !== null && $value !== '')) }}" class="btn btn-success mb-2" data-no-loader="true"><i class="fas fa-file-excel"></i> Ekspor Excel</a>
             @if ($canManageGaji)
-                <a href="{{ route('gajis.ebupot.index', array_filter(['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth])) }}" class="btn btn-outline-info mb-2"><i class="fas fa-clipboard-list"></i> Arsip E-Bupot</a>
-                <a href="{{ route('gajis.ebupot.create', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth]) }}" class="btn btn-info mb-2"><i class="fas fa-file-export"></i> Buat E-Bupot</a>
+                <a href="{{ route('gajis.ebupot.index', array_filter(['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth, 'skpd_id' => request('skpd_id')], fn ($value) => $value !== null && $value !== '')) }}" class="btn btn-outline-info mb-2"><i class="fas fa-clipboard-list"></i> Arsip E-Bupot</a>
+                <a href="{{ route('gajis.ebupot.create', array_filter(['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth, 'skpd_id' => request('skpd_id')], fn ($value) => $value !== null && $value !== '')) }}" class="btn btn-info mb-2"><i class="fas fa-file-export"></i> Buat E-Bupot</a>
                 <button type="submit" class="btn btn-danger mb-2" id="gaji-bulk-delete-button"
                         form="gaji-bulk-delete-form" formaction="{{ route('gajis.bulk-destroy') }}"
                         formmethod="POST" formnovalidate name="delete_all" value="0" {{ $gajiCurrentCount === 0 ? 'disabled' : '' }}>
@@ -59,12 +70,25 @@
                         formmethod="POST" formnovalidate name="delete_all" value="1" {{ $gajiTotal === 0 ? 'disabled' : '' }}>
                     <i class="fas fa-trash-alt"></i> Hapus Semua
                 </button>
-                <a href="{{ route('gajis.template', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth]) }}" class="btn btn-outline-secondary mb-2"><i class="fas fa-download"></i> Template</a>
+                <a href="{{ route('gajis.template', array_filter(['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth, 'skpd_id' => request('skpd_id')], fn ($value) => $value !== null && $value !== '')) }}" class="btn btn-outline-secondary mb-2" data-no-loader="true"><i class="fas fa-download"></i> Template</a>
                 <form action="{{ route('gajis.import') }}" method="POST" enctype="multipart/form-data" class="form-inline mb-2">
                     @csrf
                     <input type="hidden" name="type" value="{{ $selectedType }}">
                     <input type="hidden" name="tahun" value="{{ $selectedYear }}">
                     <input type="hidden" name="bulan" value="{{ $selectedMonth }}">
+                    @if ($currentUser->isSuperAdmin())
+                        <div class="form-group mr-2 mb-2">
+                            <select name="skpd_id" class="custom-select custom-select-sm @error('skpd_id') is-invalid @enderror">
+                                <option value="" {{ $selectedSkpdId ? '' : 'selected' }}>Pilih SKPD (opsional)</option>
+                                @foreach ($skpds as $skpd)
+                                    <option value="{{ $skpd->id }}" {{ (string) $selectedSkpdId === (string) $skpd->id ? 'selected' : '' }}>{{ $skpd->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('skpd_id')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    @endif
                     <div class="input-group">
                         <div class="custom-file">
                             <input type="file" name="file" class="custom-file-input" id="gaji-import-file" accept=".xlsx" required>
@@ -75,7 +99,7 @@
                         </div>
                     </div>
                 </form>
-                <a href="{{ route('gajis.create', ['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth]) }}" class="btn btn-primary mb-2"><i class="fas fa-plus"></i> Tambah Data Gaji {{ $typeLabels[$selectedType] ?? strtoupper($selectedType) }}</a>
+                <a href="{{ route('gajis.create', array_filter(['type' => $selectedType, 'tahun' => $selectedYear, 'bulan' => $selectedMonth, 'skpd_id' => request('skpd_id')], fn ($value) => $value !== null && $value !== '')) }}" class="btn btn-primary mb-2"><i class="fas fa-plus"></i> Tambah Data Gaji {{ $typeLabels[$selectedType] ?? strtoupper($selectedType) }}</a>
             @endif
         @else
             <div class="text-muted small mb-2">Pilih tahun dan bulan untuk mengakses ekspor, template, dan impor.</div>
@@ -113,6 +137,7 @@
             <input type="hidden" name="bulan" value="{{ $selectedMonth }}">
             <input type="hidden" name="per_page" value="{{ $perPage }}">
             <input type="hidden" name="search" value="{{ $searchTerm }}">
+            <input type="hidden" name="skpd_id" value="{{ request('skpd_id') }}">
             @foreach (request()->except(['ids', 'page', '_token', '_method', 'delete_all', 'type', 'tahun', 'bulan', 'per_page', 'search']) as $name => $value)
                 <input type="hidden" name="{{ $name }}" value="{{ $value }}">
             @endforeach
@@ -178,15 +203,12 @@
                             <th style="width: 60px;">No</th>
                             <th>Pegawai</th>
                             <th>Periode</th>
-                            @foreach ($allowanceFields as $field => $label)
+                            @foreach ($monetaryFields as $field => $label)
                                 <th>{{ $label }}</th>
                             @endforeach
-                            @foreach ($deductionFields as $field => $label)
-                                <th>{{ $label }}</th>
-                            @endforeach
-                            <th>Total Tunjangan</th>
-                            <th>Total Potongan</th>
-                            <th>Total Transfer</th>
+                            <th>Jumlah Gaji dan Tunjangan</th>
+                            <th>Jumlah Potongan</th>
+                            <th>Jumlah Ditransfer</th>
                             @if ($canManageGaji)
                                 <th class="text-center">Aksi</th>
                             @endif
@@ -199,11 +221,11 @@
                         @foreach ($gajisPaginator as $index => $gaji)
                             @php
                                 $allowanceSum = 0.0;
-                                foreach (array_keys($allowanceFields) as $fieldKey) {
+                                foreach ($totalAllowanceFields as $fieldKey) {
                                     $allowanceSum += (float) ($gaji->$fieldKey ?? 0);
                                 }
                                 $deductionSum = 0.0;
-                                foreach (array_keys($deductionFields) as $fieldKey) {
+                                foreach ($totalPotonganFields as $fieldKey) {
                                     $deductionSum += (float) ($gaji->$fieldKey ?? 0);
                                 }
                                 $transfer = $allowanceSum - $deductionSum;
@@ -221,10 +243,7 @@
                                     <div class="text-muted small">{{ optional($pegawai)->nip ?? '-' }}</div>
                                 </td>
                                 <td class="align-middle">{{ $monthOptions[$gaji->bulan] ?? $gaji->bulan }}/{{ $gaji->tahun }}</td>
-                                @foreach ($allowanceFields as $field => $label)
-                                    <td class="align-middle">{{ $formatCurrency((float) ($gaji->$field ?? 0)) }}</td>
-                                @endforeach
-                                @foreach ($deductionFields as $field => $label)
+                                @foreach ($monetaryFields as $field => $label)
                                     <td class="align-middle">{{ $formatCurrency((float) ($gaji->$field ?? 0)) }}</td>
                                 @endforeach
                                 <td class="align-middle">{{ $formatCurrency($allowanceSum) }}</td>
@@ -251,10 +270,7 @@
                             @endif
                             <td colspan="2">Total ({{ number_format($gajiTotal, 0, ',', '.') }} data)</td>
                             <td></td>
-                            @foreach ($allowanceFields as $field => $label)
-                                <td>{{ $formatCurrency((float) ($monetaryTotals[$field] ?? 0)) }}</td>
-                            @endforeach
-                            @foreach ($deductionFields as $field => $label)
+                            @foreach ($monetaryFields as $field => $label)
                                 <td>{{ $formatCurrency((float) ($monetaryTotals[$field] ?? 0)) }}</td>
                             @endforeach
                             <td>{{ $formatCurrency((float) ($summaryTotals['allowance'] ?? 0)) }}</td>

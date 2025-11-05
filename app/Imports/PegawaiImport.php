@@ -15,13 +15,15 @@ class PegawaiImport
     protected array $tipeJabatanOptions;
     protected array $statusAsnOptions;
     protected array $statusPerkawinanOptions;
+    protected ?int $defaultSkpdId;
 
-    public function __construct(Authenticatable $user, array $tipeJabatanOptions, array $statusAsnOptions, array $statusPerkawinanOptions)
+    public function __construct(Authenticatable $user, array $tipeJabatanOptions, array $statusAsnOptions, array $statusPerkawinanOptions, ?int $defaultSkpdId = null)
     {
         $this->user = $user;
         $this->tipeJabatanOptions = $tipeJabatanOptions;
         $this->statusAsnOptions = $statusAsnOptions;
         $this->statusPerkawinanOptions = $statusPerkawinanOptions;
+        $this->defaultSkpdId = $defaultSkpdId;
     }
 
     public function import(Collection $rows): void
@@ -133,26 +135,29 @@ class PegawaiImport
             return $existing->skpd_id;
         }
 
-        $skpdId = $this->user->skpd_id;
-        if ($skpdId) {
-            return $skpdId;
+        $rowSkpdName = $this->stringValue($row, ['skpd', 'nama_skpd']);
+        if ($rowSkpdName !== null) {
+            $skpd = Skpd::where('name', $rowSkpdName)->first();
+            if (! $skpd) {
+                throw new \InvalidArgumentException("SKPD '{$rowSkpdName}' tidak ditemukan.");
+            }
+
+            return $skpd->id;
+        }
+
+        if ($this->defaultSkpdId) {
+            return $this->defaultSkpdId;
+        }
+
+        if ($this->user->skpd_id) {
+            return (int) $this->user->skpd_id;
         }
 
         if (! $this->user->isSuperAdmin()) {
             throw new \InvalidArgumentException('Pengguna tidak memiliki SKPD bawaan untuk impor data.');
         }
 
-        $skpdName = $this->stringValue($row, ['skpd', 'nama_skpd']);
-        if ($skpdName === null) {
-            throw new \InvalidArgumentException('Untuk super admin, kolom SKPD wajib diisi untuk setiap baris.');
-        }
-
-        $skpd = Skpd::where('name', $skpdName)->first();
-        if (! $skpd) {
-            throw new \InvalidArgumentException("SKPD '{$skpdName}' tidak ditemukan.");
-        }
-
-        return $skpd->id;
+        throw new \InvalidArgumentException('Untuk super admin, pilih SKPD pada formulir impor atau isi kolom SKPD untuk setiap baris.');
     }
 
     protected function mapOption($value, array $options, string $label): string
@@ -229,7 +234,6 @@ class PegawaiImport
         throw new \InvalidArgumentException("{$label} harus bernilai YA atau TIDAK.");
     }
 }
-
 
 
 
