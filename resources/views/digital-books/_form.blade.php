@@ -1,30 +1,30 @@
-@csrf
+﻿@csrf
 @php
     $digitalBook = $digitalBook ?? null;
+    $isActiveValue = old('is_active', optional($digitalBook)->is_active ?? true);
+    if (is_string($isActiveValue)) {
+        $isActiveValue = $isActiveValue === '1';
+    }
+
+    $props = [
+        'fields' => [
+            'title' => old('title', optional($digitalBook)->title),
+            'file_url' => old('file_url', optional($digitalBook)->file_url),
+            'description' => old('description', optional($digitalBook)->description),
+            'is_active' => $isActiveValue ? 1 : 0,
+        ],
+        'errors' => $errors->toArray(),
+    ];
 @endphp
-<div class="form-group">
-    <label for="title">Judul</label>
-    <input type="text" name="title" id="title" class="form-control @error('title') is-invalid @enderror" value="{{ old('title', optional($digitalBook)->title) }}" required>
-    @error('title')
-        <div class="invalid-feedback">{{ $message }}</div>
-    @enderror
-</div>
-<div class="form-group">
-    <label for="file_url">Tautan Buku Digital</label>
-    <input type="url" name="file_url" id="file_url" class="form-control @error('file_url') is-invalid @enderror" value="{{ old('file_url', optional($digitalBook)->file_url) }}" required>
-    <small class="form-text text-muted">Masukkan URL file (Google Drive, OneDrive, atau repositori lain).</small>
-    @error('file_url')
-        <div class="invalid-feedback">{{ $message }}</div>
-    @enderror
-</div>
-<div class="form-group">
-    <label for="description">Deskripsi</label>
-    <textarea name="description" id="description" rows="4" class="form-control @error('description') is-invalid @enderror">{{ old('description', optional($digitalBook)->description) }}</textarea>
-    @error('description')
-        <div class="invalid-feedback">{{ $message }}</div>
-    @enderror
-</div>
-<div class="form-group form-check">
-    <input type="checkbox" name="is_active" id="is_active" value="1" class="form-check-input" {{ old('is_active', optional($digitalBook)->is_active ?? true) ? 'checked' : '' }}>
-    <label class="form-check-label" for="is_active">Aktifkan buku digital</label>
-</div>
+
+<div
+    id="digital-book-form-root"
+    data-props='@json($props, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP)'
+></div>
+
+<noscript>
+    <div class="alert alert-warning mt-3">
+        Form ini memerlukan JavaScript agar dapat digunakan. Silakan aktifkan JavaScript pada peramban Anda.
+    </div>
+</noscript>
+

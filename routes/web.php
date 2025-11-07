@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\PegawaiController as ApiPegawaiController;
+use App\Http\Controllers\Api\TppCalculationController as ApiTppCalculationController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DigitalBookController;
 use App\Http\Controllers\FeedbackController;
@@ -20,6 +22,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     Route::get('/dashboard', [AuthController::class, 'dashboard'])->name('dashboard');
     Route::get('/login-activities', [AuthController::class, 'loginActivities'])->name('login-activities.index');
+
+    Route::prefix('api')->name('api.')->group(function () {
+        Route::get('pegawais', [ApiPegawaiController::class, 'index'])->name('pegawais.index');
+        Route::get('tpp-calculations', [ApiTppCalculationController::class, 'index'])->name('tpp-calculations.index');
+    });
 
     Route::middleware('role:admin_unit')->group(function () {
         Route::post('feedbacks', [FeedbackController::class, 'store'])->name('feedbacks.store');

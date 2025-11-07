@@ -93,4 +93,91 @@ return [
             'category' => 'deduction',
         ],
     ],
+
+    'total_allowance_fields' => [
+        'tpp_beban_kerja',
+        'tpp_tempat_bertugas',
+        'tpp_kondisi_kerja',
+        'tpp_kelangkaan_profesi',
+        'tpp_prestasi_kerja',
+        'tunjangan_pph',
+        'iuran_jaminan_kesehatan',
+        'iuran_jaminan_kecelakaan_kerja',
+        'iuran_jaminan_kematian',
+        'iuran_simpanan_tapera',
+        'iuran_pensiun',
+        'tunjangan_jaminan_hari_tua',
+    ],
+
+    'total_deduction_fields' => [
+        'iuran_jaminan_kesehatan',
+        'iuran_jaminan_kecelakaan_kerja',
+        'iuran_jaminan_kematian',
+        'iuran_simpanan_tapera',
+        'iuran_pensiun',
+        'tunjangan_jaminan_hari_tua',
+        'potongan_iwp',
+        'potongan_pph_21',
+        'zakat',
+        'bulog',
+    ],
+
+    'formula_groups' => [
+        [
+            'key' => 'komponen_dasar',
+            'label' => 'Komponen Dasar TPP',
+            'impact' => 'allowance',
+            'note' => 'Menjumlahkan seluruh komponen TPP sebelum potongan wajib.',
+            'fields' => [
+                'tpp_beban_kerja',
+                'tpp_tempat_bertugas',
+                'tpp_kondisi_kerja',
+                'tpp_kelangkaan_profesi',
+                'tpp_prestasi_kerja',
+            ],
+        ],
+        [
+            'key' => 'tunjangan_pengganti_pajak',
+            'label' => 'Tunjangan Pengganti Pajak',
+            'impact' => 'allowance',
+            'note' => 'Dialokasikan untuk menutup potongan PPh 21.',
+            'fields' => [
+                'tunjangan_pph',
+            ],
+        ],
+        [
+            'key' => 'tunjangan_jht',
+            'label' => 'Tunjangan Jaminan Hari Tua',
+            'impact' => 'neutral',
+            'note' => 'Nilai ini masuk ke komponen TPP dan langsung dikurangkan sebagai iuran JHT.',
+            'fields' => [
+                'tunjangan_jaminan_hari_tua',
+            ],
+        ],
+        [
+            'key' => 'iuran_pemerintah',
+            'label' => 'Iuran Pemerintah (BPJS, Tapera, Pensiun)',
+            'impact' => 'deduction',
+            'note' => 'Potongan 5 jenis iuran wajib yang secara peraturan tetap tercatat dalam komponen TPP.',
+            'fields' => [
+                'iuran_jaminan_kesehatan',
+                'iuran_jaminan_kecelakaan_kerja',
+                'iuran_jaminan_kematian',
+                'iuran_simpanan_tapera',
+                'iuran_pensiun',
+            ],
+        ],
+        [
+            'key' => 'potongan_pegawai',
+            'label' => 'Potongan Pegawai (IWP, Pajak, Zakat, Bulog)',
+            'impact' => 'deduction',
+            'note' => 'Seluruh potongan yang langsung mengurangi jumlah transfer pegawai.',
+            'fields' => [
+                'potongan_iwp',
+                'potongan_pph_21',
+                'zakat',
+                'bulog',
+            ],
+        ],
+    ],
 ];

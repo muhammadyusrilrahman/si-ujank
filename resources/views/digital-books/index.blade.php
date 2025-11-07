@@ -1,89 +1,76 @@
-@extends('layouts.app')
+﻿@extends('layouts.app')
 
 @section('title', 'Buku Digital')
 @section('page-title', 'Kelola Buku Digital')
 
 @section('content')
 @php
-    $books = $books ?? collect();
-    $search = $search ?? '';
+    use Illuminate\Pagination\LengthAwarePaginator;
+
+    $booksCollection = $books ?? collect();
+    $searchQuery = $search ?? '';
+    $isPaginated = $books instanceof LengthAwarePaginator;
+
+    $items = $booksCollection->map(function ($book) {
+        return [
+            'id' => $book->id,
+            'title' => $book->title,
+            'description' => $book->description,
+            'link_url' => $book->file_url,
+            'is_active' => (bool) $book->is_active,
+            'edit_url' => route('digital-books.edit', $book),
+            'delete_url' => route('digital-books.destroy', $book),
+        ];
+    })->values()->all();
+
+    $pagination = null;
+
+    if ($isPaginated) {
+        $paginatorArray = $books->toArray();
+        $pagination = [
+            'from' => $books->firstItem(),
+            'links' => collect($paginatorArray['links'] ?? [])->map(function ($link) {
+                return [
+                    'url' => $link['url'],
+                    'label' => $link['label'],
+                    'active' => $link['active'],
+                ];
+            })->all(),
+        ];
+    }
+
+    $props = [
+        'searchQuery' => $searchQuery,
+        'routes' => [
+            'index' => route('digital-books.index'),
+            'create' => route('digital-books.create'),
+        ],
+        'statusMessage' => session('status'),
+        'csrfToken' => csrf_token(),
+        'items' => $items,
+        'pagination' => $pagination,
+        'texts' => [
+            'searchPlaceholder' => 'Cari judul atau deskripsi',
+            'createButton' => 'Tambah Buku',
+            'linkColumn' => 'Tautan',
+            'linkText' => 'Lihat tautan',
+            'emptyMessage' => 'Belum ada data buku digital.',
+            'deleteConfirm' => 'Hapus buku digital ini?',
+            'statusActive' => 'Aktif',
+            'statusInactive' => 'Nonaktif',
+        ],
+    ];
 @endphp
-<div class="card">
-    <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
-        <form action="{{ route('digital-books.index') }}" method="GET" class="form-inline">
-            <div class="input-group">
-                <input type="text" name="q" class="form-control" placeholder="Cari judul atau deskripsi" value="{{ $search }}">
-                <div class="input-group-append">
-                    <button class="btn btn-outline-secondary" type="submit"><i class="fas fa-search"></i> Cari</button>
-                </div>
-            </div>
-        </form>
-        <a href="{{ route('digital-books.create') }}" class="btn btn-primary">
-            <i class="fas fa-plus"></i> Tambah Buku
-        </a>
+
+<div
+    id="digital-books-index-root"
+    data-props='@json($props, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP)'
+></div>
+
+<noscript>
+    <div class="alert alert-warning mt-3">
+        Halaman ini memerlukan JavaScript agar dapat digunakan sepenuhnya. Silakan aktifkan JavaScript pada peramban Anda.
     </div>
-    <div class="card-body p-0">
-        @if (session('status'))
-            <div class="alert alert-success m-3">
-                {{ session('status') }}
-            </div>
-        @endif
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead class="thead-light">
-                    <tr>
-                        <th style="width: 60px">#</th>
-                        <th>Judul</th>
-                        <th>Deskripsi</th>
-                        <th>Tautan</th>
-                        <th>Status</th>
-                        <th style="width: 160px" class="text-right">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($books as $index => $book)
-                        <tr>
-                            <td>{{ $books->firstItem() + $index }}</td>
-                            <td>{{ $book->title }}</td>
-                            <td class="text-muted small">{{ \Illuminate\Support\Str::limit($book->description, 120) }}</td>
-                            <td>
-                                <a href="{{ $book->file_url }}" target="_blank" rel="noopener" class="text-primary">
-                                    Lihat tautan <i class="fas fa-external-link-alt ml-1"></i>
-                                </a>
-                            </td>
-                            <td>
-                                @if ($book->is_active)
-                                    <span class="badge badge-success">Aktif</span>
-                                @else
-                                    <span class="badge badge-secondary">Nonaktif</span>
-                                @endif
-                            </td>
-                            <td class="text-right">
-                                <a href="{{ route('digital-books.edit', $book) }}" class="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <form action="{{ route('digital-books.destroy', $book) }}" method="POST" class="d-inline" onsubmit="return confirm('Hapus buku digital ini?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="6" class="text-center text-muted py-4">Belum ada data buku digital.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-    @if ($books instanceof \Illuminate\Pagination\AbstractPaginator && $books->hasPages())
-        <div class="card-footer">
-            {{ $books->onEachSide(1)->links('pagination::bootstrap-4') }}
-        </div>
-    @endif
-</div>
+</noscript>
 @endsection
+

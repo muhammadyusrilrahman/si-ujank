@@ -132,6 +132,75 @@ class TppController extends Controller
 
         return view('tpps.index', $viewData);
     }
+
+    public function show(Request $request, Tpp $tpp): View
+    {
+        $currentUser = $request->user();
+        abort_unless($currentUser->isSuperAdmin() || $currentUser->isAdminUnit(), 403);
+
+        $tpp->loadMissing(['pegawai.skpd']);
+        $this->ensureCanManageTpp($tpp, $currentUser);
+
+        $allowanceFields = $this->allowanceFields();
+        $deductionFields = $this->deductionFields();
+
+        $allowanceTotal = 0.0;
+        foreach ($this->totalTppFields() as $field) {
+            $allowanceTotal += (float) ($tpp->{$field} ?? 0.0);
+        }
+
+        $deductionTotal = 0.0;
+        foreach ($this->totalPotonganFields() as $field) {
+            $deductionTotal += (float) ($tpp->{$field} ?? 0.0);
+        }
+
+        $pegawai = $tpp->pegawai;
+        $skpd = optional($pegawai)->skpd;
+        $monthOptions = $this->monthOptions();
+
+        $showProps = [
+            'pegawai' => [
+                'name' => optional($pegawai)->nama_lengkap ?? optional($pegawai)->nama ?? '-',
+                'nip' => optional($pegawai)->nip ?? '-',
+                'skpd' => optional($skpd)->name ?? '-',
+            ],
+            'period' => [
+                'year' => $tpp->tahun,
+                'month' => $tpp->bulan,
+                'label' => sprintf(
+                    '%s %s',
+                    $monthOptions[$tpp->bulan] ?? $tpp->bulan,
+                    $tpp->tahun
+                ),
+            ],
+            'amounts' => [
+                'total_allowance' => $allowanceTotal,
+                'total_deduction' => $deductionTotal,
+                'total_transfer' => $allowanceTotal - $deductionTotal,
+            ],
+            'routes' => [
+                'index' => route('tpps.index', ['type' => $tpp->jenis_asn]),
+                'edit' => route('tpps.edit', ['tpp' => $tpp, 'type' => $tpp->jenis_asn]),
+                'destroy' => route('tpps.destroy', ['tpp' => $tpp, 'type' => $tpp->jenis_asn]),
+            ],
+            'texts' => [
+                'totalAllowance' => 'Total Komponen TPP',
+                'totalDeduction' => 'Total Potongan',
+                'totalTransfer' => 'Jumlah Ditransfer',
+            ],
+            'confirmations' => [
+                'delete' => 'Hapus data TPP ini?',
+            ],
+        ];
+
+        return view('tpps.show', [
+            'tpp' => $tpp,
+            'showProps' => $showProps,
+            'allowanceFields' => $allowanceFields,
+            'deductionFields' => $deductionFields,
+            'monthOptions' => $this->monthOptions(),
+        ]);
+    }
     public function indexEbupot(Request $request): View
     {
         $currentUser = $request->user();
@@ -396,6 +465,8 @@ class TppController extends Controller
             'defaultMonth' => $defaultMonth,
             'pegawaiOptions' => $this->pegawaiOptionsForType($selectedType, $currentUser),
             'monetaryFields' => $this->monetaryFields(),
+            'totalAllowanceFields' => $this->totalTppFields(),
+            'totalDeductionFields' => $this->totalPotonganFields(),
         ]);
     }
 
@@ -471,6 +542,8 @@ class TppController extends Controller
             'defaultMonth' => $tpp->bulan,
             'pegawaiOptions' => $this->pegawaiOptionsForType($selectedType, $currentUser, $tpp->pegawai),
             'monetaryFields' => $this->monetaryFields(),
+            'totalAllowanceFields' => $this->totalTppFields(),
+            'totalDeductionFields' => $this->totalPotonganFields(),
         ]);
     }
 
@@ -849,7 +922,7 @@ class TppController extends Controller
 
     private function totalTppFields(): array
     {
-        return [
+        $defaults = [
             'tpp_beban_kerja',
             'tpp_tempat_bertugas',
             'tpp_kondisi_kerja',
@@ -863,11 +936,15 @@ class TppController extends Controller
             'iuran_pensiun',
             'tunjangan_jaminan_hari_tua',
         ];
+
+        $fields = config('tpp.total_allowance_fields', $defaults);
+
+        return array_values(array_filter(array_map('strval', $fields)));
     }
 
     private function totalPotonganFields(): array
     {
-        return [
+        $defaults = [
             'iuran_jaminan_kesehatan',
             'iuran_jaminan_kecelakaan_kerja',
             'iuran_jaminan_kematian',
@@ -879,6 +956,10 @@ class TppController extends Controller
             'zakat',
             'bulog',
         ];
+
+        $fields = config('tpp.total_deduction_fields', $defaults);
+
+        return array_values(array_filter(array_map('strval', $fields)));
     }
 
     private function allowanceFields(): array

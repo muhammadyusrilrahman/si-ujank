@@ -14,103 +14,102 @@
 @endsection
 
 @section('card-body')
-    <form method="GET" action="{{ route('gajis.ebupot.index') }}" class="row align-items-end mb-4">
-        <div class="col-md-3 mb-3">
-            <label for="filter-type" class="form-label">Jenis ASN</label>
-            <select id="filter-type" name="type" class="form-control">
-                <option value="">Semua</option>
-                @foreach ($typeLabels as $key => $label)
-                    <option value="{{ $key }}" @selected(($filters['type'] ?? '') === $key)>
-                        {{ strtoupper($key) }} - {{ $label }}
-                    </option>
-                @endforeach
-            </select>
-        </div>
-        <div class="col-md-3 mb-3">
-            <label for="filter-year" class="form-label">Tahun</label>
-            <input type="number" min="2000" max="{{ date('Y') + 5 }}" id="filter-year" name="tahun" value="{{ $filters['tahun'] ?? '' }}" class="form-control">
-        </div>
-        <div class="col-md-3 mb-3">
-            <label for="filter-month" class="form-label">Bulan</label>
-            <select id="filter-month" name="bulan" class="form-control">
-                <option value="">Semua</option>
-                @foreach ($monthOptions as $value => $label)
-                    <option value="{{ $value }}" @selected((string) ($filters['bulan'] ?? '') === (string) $value)>
-                        {{ $label }}
-                    </option>
-                @endforeach
-            </select>
-        </div>
-        <div class="col-md-3 mb-3 d-flex align-items-end">
-            <button type="submit" class="btn btn-primary mr-2 flex-fill">
-                <i class="fas fa-filter"></i>
-                Terapkan
-            </button>
-            <a href="{{ route('gajis.ebupot.index') }}" class="btn btn-outline-secondary flex-fill">
-                Atur Ulang
-            </a>
-        </div>
-    </form>
+@php
+    use Illuminate\Pagination\LengthAwarePaginator;
 
-    @if ($reports->isEmpty())
-        <div class="alert alert-info mb-0">
-            Belum ada arsip e-Bupot untuk filter yang dipilih.
-        </div>
-    @else
-        <div class="table-responsive">
-            <table class="table table-striped table-bordered align-middle">
-                <thead class="table-primary">
-                    <tr class="text-center">
-                        <th>#</th>
-                        <th>Periode</th>
-                        <th>Jenis ASN</th>
-                        @if (auth()->user()?->isSuperAdmin())
-                            <th>SKPD</th>
-                        @endif
-                        <th>NPWP Pemotong</th>
-                        <th>ID TKU</th>
-                        <th>Kode Objek</th>
-                        <th>Jumlah Data</th>
-                        <th>Total Penghasilan</th>
-                        <th>Dibuat Oleh</th>
-                        <th>Diperbarui</th>
-                        <th>Aksi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($reports as $index => $report)
-                        <tr>
-                            <td class="text-center">{{ $reports->firstItem() + $index }}</td>
-                            <td class="text-center">{{ str_pad($report->bulan, 2, '0', STR_PAD_LEFT) }}/{{ $report->tahun }}</td>
-                            <td class="text-center">{{ strtoupper($report->jenis_asn) }}</td>
-                            @if (auth()->user()?->isSuperAdmin())
-                                <td>{{ optional($report->skpd)->name ?? '—' }}</td>
-                            @endif
-                            <td>{{ $report->npwp_pemotong ?: '—' }}</td>
-                            <td>{{ $report->id_tku ?: '—' }}</td>
-                            <td>{{ $report->kode_objek ?: '—' }}</td>
-                            <td class="text-center">{{ number_format($report->entry_count) }}</td>
-                            <td class="text-right">{{ \App\Support\MoneyFormatter::rupiah((float) $report->total_gross) }}</td>
-                            <td>{{ optional($report->user)->name ?? '—' }}</td>
-                            <td class="text-center">{{ optional($report->updated_at)->format('d/m/Y H:i') }}</td>
-                            <td class="text-center">
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <a href="{{ route('gajis.ebupot.download', ['report' => $report->id, 'format' => 'xlsx']) }}" class="btn btn-outline-primary">
-                                        <i class="fas fa-file-excel"></i>
-                                    </a>
-                                    <a href="{{ route('gajis.ebupot.download', ['report' => $report->id, 'format' => 'xml']) }}" class="btn btn-outline-secondary flex-fill">
-                                        <i class="fas fa-file-code"></i>
-                                    </a>
-                                </div>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
+    $currentUser = auth()->user();
+    $isSuperAdmin = $currentUser->isSuperAdmin();
 
-        <div class="mt-3">
-            {{ $reports->withQueryString()->links() }}
-        </div>
-    @endif
+    $typeOptions = collect($typeLabels ?? [])->map(function ($label, $key) {
+        return [
+            'value' => (string) $key,
+            'display' => strtoupper($key) . ' - ' . $label,
+        ];
+    })->values()->all();
+
+    $monthOptionsArray = collect($monthOptions ?? [])->map(function ($label, $value) {
+        return [
+            'value' => (string) $value,
+            'label' => $label,
+        ];
+    })->values()->all();
+
+    $reportsPaginator = $reports ?? null;
+    $items = [];
+    $pagination = null;
+
+    if ($reportsPaginator instanceof LengthAwarePaginator && $reportsPaginator->count() > 0) {
+        $items = $reportsPaginator->map(function ($report) use ($typeLabels, $isSuperAdmin) {
+            $periode = sprintf('%02d/%d', $report->bulan, $report->tahun);
+
+            return [
+                'id' => $report->id,
+                'period' => $periode,
+                'jenis_asn' => strtoupper($report->jenis_asn),
+                'skpd' => optional($report->skpd)->name,
+                'npwp' => $report->npwp_pemotong,
+                'id_tku' => $report->id_tku,
+                'kode_objek' => $report->kode_objek,
+                'entry_count' => (int) $report->entry_count,
+                'total_gross' => (float) $report->total_gross,
+                'created_by' => optional($report->user)->name,
+                'updated_at' => optional($report->updated_at)->format('d/m/Y H:i'),
+                'links' => [
+                    'xlsx' => route('gajis.ebupot.download', ['report' => $report->id, 'format' => 'xlsx']),
+                    'xml' => route('gajis.ebupot.download', ['report' => $report->id, 'format' => 'xml']),
+                ],
+            ];
+        })->values()->all();
+
+        $paginatorArray = $reportsPaginator->toArray();
+        $pagination = [
+            'from' => $reportsPaginator->firstItem(),
+            'links' => collect($paginatorArray['links'] ?? [])->map(function ($link) {
+                return [
+                    'url' => $link['url'],
+                    'label' => $link['label'],
+                    'active' => $link['active'],
+                ];
+            })->all(),
+        ];
+    }
+
+    $props = [
+        'typeOptions' => $typeOptions,
+        'filters' => [
+            'type' => $filters['type'] ?? '',
+            'year' => $filters['tahun'] ?? '',
+            'month' => $filters['bulan'] ?? '',
+        ],
+        'monthOptions' => $monthOptionsArray,
+        'yearBounds' => [
+            'min' => 2000,
+            'max' => date('Y') + 5,
+        ],
+        'routes' => [
+            'index' => route('gajis.ebupot.index'),
+            'create' => route('gajis.ebupot.create', array_filter($filters ?? [])),
+        ],
+        'items' => $items,
+        'pagination' => $pagination,
+        'showSkpd' => $isSuperAdmin,
+        'texts' => [
+            'title' => 'Arsip E-Bupot',
+            'createButton' => 'Buat E-Bupot',
+            'emptyMessage' => 'Belum ada arsip e-Bupot untuk filter yang dipilih.',
+        ],
+    ];
+@endphp
+
+<div
+    id="gaji-ebupot-index-root"
+    data-props='@json($props, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP)'
+></div>
+
+<noscript>
+    <div class="alert alert-warning mt-3">
+        Halaman ini memerlukan JavaScript agar dapat digunakan sepenuhnya. Silakan aktifkan JavaScript pada peramban Anda.
+    </div>
+</noscript>
 @endsection
+

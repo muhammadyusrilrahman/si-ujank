@@ -1,4 +1,4 @@
-@extends('layouts.auth')
+﻿@extends('layouts.auth')
 
 @section('title', 'Masuk Aplikasi')
 
@@ -66,6 +66,10 @@
         width: auto;
     }
 
+    .js-enabled .login-fallback {
+        display: none !important;
+    }
+
     @media (min-width: 768px) {
         .login-card {
             flex-direction: row;
@@ -101,179 +105,178 @@
     <span class="d-none"></span>
 @endsection
 
+@php
+    $skpdOptionsData = $skpdOptions
+        ->map(fn ($skpd) => [
+            'id' => $skpd->id,
+            'name' => $skpd->name,
+        ])
+        ->values();
+
+    $selectedSkpd = $skpdOptions->firstWhere('id', old('skpd_id'));
+
+    $loginProps = [
+        'csrfToken' => csrf_token(),
+        'routes' => [
+            'home' => url('/'),
+            'login' => url('/login'),
+            'captcha' => route('captcha'),
+        ],
+        'assets' => [
+            'logo' => asset('SI-UJANK.png'),
+        ],
+        'appName' => config('app.name', 'SI-UJANK'),
+        'skpdOptions' => $skpdOptionsData,
+        'old' => [
+            'username' => old('username', ''),
+            'skpd_id' => old('skpd_id'),
+            'skpd_name' => optional($selectedSkpd)->name,
+        ],
+        'errors' => $errors->toArray(),
+    ];
+@endphp
+
 @section('content')
-<div class="card card-outline card-primary login-card">
-    <div class="logo-side">
-        <div class="login-logo">
-            <a href="{{ url('/') }}" class="logo-container">
-                <img src="{{ asset('SI-UJANK.png') }}" alt="{{ config('app.name', 'SI-UJANK') }}">
-            </a>
-        </div>
+    <div id="login-root"
+         data-props='@json($loginProps, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP)'>
     </div>
-    <div class="form-side">
-        <div class="login-form-wrapper">
-            <div class="text-center mb-4">
-                <h3 class="h4 mb-2">Silakan Masuk</h3>
-                <p class="login-box-msg mb-0">Masukkan kredensial Anda untuk mengakses dashboard.</p>
+
+    <div class="card card-outline card-primary login-card login-fallback mt-4">
+        <div class="logo-side">
+            <div class="login-logo">
+                <a href="{{ url('/') }}" class="logo-container">
+                    <img src="{{ asset('SI-UJANK.png') }}" alt="{{ config('app.name', 'SI-UJANK') }}">
+                </a>
             </div>
-
-            @if ($errors->any())
-                <div class="alert alert-danger small mb-4" role="alert">
-                    <ul class="mb-0 pl-3">
-                        @foreach ($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
+        </div>
+        <div class="form-side">
+            <div class="login-form-wrapper">
+                <div class="text-center mb-4">
+                    <h3 class="h4 mb-2">Silakan Masuk</h3>
+                    <p class="login-box-msg mb-0">
+                        Masukkan kredensial Anda untuk mengakses dashboard.
+                    </p>
                 </div>
-            @endif
 
-            <form action="{{ route('login.attempt') }}" method="POST" autocomplete="off">
-                @csrf
-                <div class="input-group mb-3">
-                    <input type="text" name="username" class="form-control @error('username') is-invalid @enderror" placeholder="Username" value="{{ old('username') }}" required autofocus>
-                    <div class="input-group-append">
-                        <div class="input-group-text">
-                            <span class="fas fa-user"></span>
-                        </div>
+                @if ($errors->any())
+                    <div class="alert alert-danger small mb-4" role="alert">
+                        <ul class="mb-0 pl-3">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
                     </div>
-                </div>
+                @endif
 
-                <div class="input-group mb-3">
-                    <input type="password" name="password" class="form-control @error('password') is-invalid @enderror" placeholder="Password" required>
-                    <div class="input-group-append">
-                        <div class="input-group-text">
-                            <span class="fas fa-lock"></span>
-                        </div>
-                    </div>
-                </div>
-
-            <div class="form-group mb-3">
-                <label class="d-block mb-1">SKPD / Instansi <small class="text-muted">(wajib untuk non Super Admin)</small></label>
-                <div class="input-group dropdown">
-                        <div class="dropdown-menu w-100 p-0" id="skpd-dropdown">
-                            <div class="p-2 border-bottom">
-                                <input type="text" class="form-control" id="skpd-search" placeholder="Cari SKPD / Instansi">
+                <form method="POST" action="{{ route('login.attempt') }}" novalidate>
+                    @csrf
+                    <div class="form-group">
+                        <label for="fallback-username">Nama Pengguna</label>
+                        <div class="input-group">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text"><i class="fas fa-user"></i></span>
                             </div>
-                            <div class="list-group list-group-flush" id="skpd-list" style="max-height: 220px; overflow-y: auto;">
-                                @foreach ($skpdOptions as $skpd)
-                                    <button type="button" class="list-group-item list-group-item-action skpd-option" data-id="{{ $skpd->id }}" data-name="{{ $skpd->name }}" data-search="{{ strtolower($skpd->name) }}">
-                                        {{ $skpd->name }}
-                                    </button>
-                                @endforeach
+                            <input
+                                id="fallback-username"
+                                name="username"
+                                type="text"
+                                class="form-control @error('username') is-invalid @enderror"
+                                placeholder="Masukkan username"
+                                autocomplete="username"
+                                required
+                                value="{{ old('username', '') }}"
+                            >
+                        </div>
+                        @error('username')
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="form-group">
+                        <label for="fallback-password">Kata Sandi</label>
+                        <div class="input-group">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text"><i class="fas fa-lock"></i></span>
                             </div>
+                            <input
+                                id="fallback-password"
+                                name="password"
+                                type="password"
+                                class="form-control @error('password') is-invalid @enderror"
+                                placeholder="Masukkan kata sandi"
+                                autocomplete="current-password"
+                                required
+                            >
                         </div>
-                        <input type="text" readonly class="form-control @error('skpd_id') is-invalid @enderror" id="skpd-display" placeholder="Pilih SKPD / Instansi" value="{{ optional($skpdOptions->firstWhere('id', old('skpd_id')))->name }}" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        <div class="input-group-append">
-                            <span class="input-group-text"><i class="fas fa-building"></i></span>
+                        @error('password')
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="form-group">
+                        <label for="fallback-skpd">SKPD / Instansi</label>
+                        <select
+                            id="fallback-skpd"
+                            name="skpd_id"
+                            class="form-control @error('skpd_id') is-invalid @enderror"
+                        >
+                            <option value="">Pilih SKPD / Instansi</option>
+                            @foreach ($skpdOptions as $skpd)
+                                <option value="{{ $skpd->id }}" @selected(old('skpd_id') == $skpd->id)>
+                                    {{ $skpd->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <small class="form-text text-muted">
+                            Wajib dipilih untuk Admin Unit / User Reguler.
+                        </small>
+                        @error('skpd_id')
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="form-group">
+                        <label for="fallback-captcha">Captcha</label>
+                        <div class="d-flex align-items-center mb-2">
+                            <img
+                                id="fallback-captcha"
+                                src="{{ route('captcha') }}?t={{ time() }}"
+                                alt="Captcha"
+                                class="img-fluid"
+                                style="height: 48px;"
+                            >
+                            <button
+                                type="button"
+                                class="btn btn-link btn-sm ml-2 p-0"
+                                onclick="document.getElementById('fallback-captcha').src='{{ route('captcha') }}?t=' + Date.now(); return false;"
+                            >
+                                Muat ulang
+                            </button>
                         </div>
+                        <input
+                            type="text"
+                            name="captcha"
+                            class="form-control @error('captcha') is-invalid @enderror"
+                            placeholder="Masukkan kode captcha"
+                            required
+                        >
+                        @error('captcha')
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
+                        @enderror
                     </div>
-                    <input type="hidden" name="skpd_id" id="skpd-id" value="{{ old('skpd_id') }}">
-                </div>
 
-                <div class="form-group">
-                    <label class="d-block">Captcha</label>
-                    <div class="d-flex align-items-center mb-2">
-                        <img src="{{ route('captcha') }}" alt="Captcha" class="img-fluid border rounded" id="captcha-image" style="height: 56px; width: 180px; object-fit: cover;">
-                        <button class="btn btn-outline-secondary ml-2" type="button" id="refresh-captcha" aria-label="Refresh captcha">
-                            <i class="fas fa-sync"></i>
-                        </button>
-                    </div>
-                    <input type="text" name="captcha" class="form-control @error('captcha') is-invalid @enderror" placeholder="Masukkan kode keamanan" required>
-                </div>
-
-                <div class="row">
-                    <div class="col-12">
-                        <button type="submit" class="btn btn-primary btn-block">
-                            <i class="fas fa-sign-in-alt mr-1"></i> Masuk Dashboard
-                        </button>
-                    </div>
-                </div>
-            </form>
+                    <button type="submit" class="btn btn-primary btn-block">
+                        Masuk
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
-</div>
+
+    <noscript>
+        <div class="alert alert-warning mt-3">
+            Halaman login membutuhkan JavaScript agar dapat digunakan. Silakan aktifkan JavaScript pada peramban Anda.
+        </div>
+    </noscript>
 @endsection
 
-@push('scripts')
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const refreshButton = document.getElementById('refresh-captcha');
-        const captchaImage = document.getElementById('captcha-image');
-        const searchInput = document.getElementById('skpd-search');
-        const dropdown = document.getElementById('skpd-dropdown');
-        const displayInput = document.getElementById('skpd-display');
-        const list = document.getElementById('skpd-list');
-        const hiddenInput = document.getElementById('skpd-id');
-
-        const refreshCaptcha = () => {
-            const url = new URL('{{ route('captcha') }}', window.location.origin);
-            url.searchParams.set('t', Date.now());
-            captchaImage.src = url.href;
-        };
-
-        const toggleDropdown = (show) => {
-            dropdown.classList.toggle('show', show);
-            displayInput.setAttribute('aria-expanded', show ? 'true' : 'false');
-        };
-
-        const filterOptions = () => {
-            const query = searchInput.value.trim().toLowerCase();
-            const options = dropdown.querySelectorAll('.skpd-option');
-            let anyVisible = false;
-
-            options.forEach(option => {
-                const matches = option.dataset.search.includes(query);
-                option.classList.toggle('d-none', !matches);
-                if (matches) {
-                    anyVisible = true;
-                }
-            });
-
-            dropdown.classList.toggle('dropdown-empty', !anyVisible);
-        };
-
-        const selectOption = (option) => {
-            displayInput.value = option.dataset.name;
-            hiddenInput.value = option.dataset.id;
-            toggleDropdown(false);
-        };
-
-        displayInput.addEventListener('click', (event) => {
-            event.stopPropagation();
-            toggleDropdown(!dropdown.classList.contains('show'));
-
-            if (dropdown.classList.contains('show')) {
-                searchInput.focus({ preventScroll: true });
-                searchInput.select();
-            }
-        });
-
-        list.addEventListener('click', (event) => {
-            const option = event.target.closest('.skpd-option');
-            if (!option) {
-                return;
-            }
-
-            selectOption(option);
-        });
-
-        document.addEventListener('click', (event) => {
-            if (!dropdown.contains(event.target) && event.target !== displayInput) {
-                toggleDropdown(false);
-            }
-        });
-
-        searchInput.addEventListener('input', filterOptions);
-
-        if (hiddenInput.value) {
-            const initial = dropdown.querySelector(`.skpd-option[data-id="${hiddenInput.value}"]`);
-            if (initial) {
-                selectOption(initial);
-            }
-        }
-
-        refreshButton.addEventListener('click', refreshCaptcha);
-        captchaImage.addEventListener('click', refreshCaptcha);
-    });
-</script>
-@endpush

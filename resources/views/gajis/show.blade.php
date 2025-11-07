@@ -1,67 +1,46 @@
-@extends('gajis.layout')
+﻿@extends('gajis.layout')
 
 @section('title', 'Detail Data Gaji')
 
-@section('card-tools')
-    <a href="{{ route('gajis.edit', $gaji) }}" class="btn btn-warning btn-sm">
-        <i class="fas fa-edit"></i> Edit
-    </a>
-    <form action="{{ route('gajis.destroy', $gaji) }}" method="POST" class="d-inline">
-        @csrf
-        @method('DELETE')
-        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Apakah Anda yakin ingin menghapus data ini?')">
-            <i class="fas fa-trash"></i> Hapus
-        </button>
-    </form>
-@endsection
-
 @section('card-body')
-    <div class="row">
-        <div class="col-md-6">
-            <table class="table">
-                <tr>
-                    <th style="width: 200px">Nama Pegawai</th>
-                    <td>{{ $gaji->pegawai->nama }}</td>
-                </tr>
-                <tr>
-                    <th>NIP</th>
-                    <td>{{ $gaji->pegawai->nip }}</td>
-                </tr>
-                <tr>
-                    <th>SKPD</th>
-                    <td>{{ $gaji->pegawai->skpd->nama }}</td>
-                </tr>
-                <tr>
-                    <th>Periode</th>
-                    <td>{{ date('F', mktime(0, 0, 0, $gaji->bulan, 1)) }} {{ $gaji->tahun }}</td>
-                </tr>
-            </table>
-        </div>
-        <div class="col-md-6">
-            <table class="table">
-                <tr>
-                    <th style="width: 200px">Gaji Pokok</th>
-                    <td>{{ \App\Support\MoneyFormatter::rupiah($gaji->gaji_pokok, 0) }}</td>
-                </tr>
-                <tr>
-                    <th>Tunjangan</th>
-                    <td>{{ \App\Support\MoneyFormatter::rupiah($gaji->tunjangan, 0) }}</td>
-                </tr>
-                <tr>
-                    <th>Potongan</th>
-                    <td>{{ \App\Support\MoneyFormatter::rupiah($gaji->potongan, 0) }}</td>
-                </tr>
-                <tr class="table-primary">
-                    <th>Total Gaji</th>
-                    <td>{{ \App\Support\MoneyFormatter::rupiah($gaji->gaji_pokok + $gaji->tunjangan - $gaji->potongan, 0) }}</td>
-                </tr>
-            </table>
-        </div>
-    </div>
+@php
+    $props = $showProps ?? [
+        'pegawai' => [
+            'name' => optional($gaji->pegawai)->nama_lengkap ?? optional($gaji->pegawai)->nama ?? '-',
+            'nip' => optional($gaji->pegawai)->nip ?? '-',
+            'skpd' => optional(optional($gaji->pegawai)->skpd)->name ?? '-',
+        ],
+        'period' => [
+            'label' => sprintf('%s %s', \App\Support\MonthName::id($gaji->bulan), $gaji->tahun),
+        ],
+        'amounts' => [
+            'gaji_pokok' => (float) ($gaji->gaji_pokok ?? 0),
+            'tunjangan' => (float) ($gaji->tunjangan ?? 0),
+            'potongan' => (float) ($gaji->potongan ?? 0),
+            'total' => (float) (($gaji->gaji_pokok ?? 0) + ($gaji->tunjangan ?? 0) - ($gaji->potongan ?? 0)),
+        ],
+        'routes' => [
+            'index' => route('gajis.index', ['type' => $gaji->jenis_asn]),
+            'edit' => route('gajis.edit', ['gaji' => $gaji, 'type' => $gaji->jenis_asn]),
+            'destroy' => route('gajis.destroy', ['gaji' => $gaji, 'type' => $gaji->jenis_asn]),
+        ],
+        'confirmations' => [
+            'delete' => 'Apakah Anda yakin ingin menghapus data ini?',
+        ],
+    ];
 
-    <div class="d-flex justify-content-end mt-3">
-        <a href="{{ route('gajis.index') }}" class="btn btn-secondary btn-sm">
-            <i class="fas fa-arrow-left"></i> Kembali
-        </a>
+    $props['csrfToken'] = csrf_token();
+@endphp
+
+<div
+    id="gaji-show-root"
+    data-props='@json($props, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP)'
+></div>
+
+<noscript>
+    <div class="alert alert-warning mt-3">
+        Halaman ini memerlukan JavaScript agar dapat digunakan sepenuhnya. Silakan aktifkan JavaScript pada peramban Anda.
     </div>
+</noscript>
 @endsection
+

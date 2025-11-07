@@ -244,8 +244,45 @@ class GajiController extends Controller
         $gaji->loadMissing(['pegawai.skpd']);
         $this->ensureCanManageGaji($gaji, $currentUser);
 
+        $pegawai = $gaji->pegawai;
+        $skpd = optional($pegawai)->skpd;
+        $monthOptions = $this->monthOptions();
+        $periodLabel = sprintf(
+            '%s %s',
+            $monthOptions[$gaji->bulan] ?? $gaji->bulan,
+            $gaji->tahun
+        );
+
+        $showProps = [
+            'pegawai' => [
+                'name' => optional($pegawai)->nama_lengkap ?? optional($pegawai)->nama ?? '-',
+                'nip' => optional($pegawai)->nip ?? '-',
+                'skpd' => optional($skpd)->name ?? optional($skpd)->nama ?? '-',
+            ],
+            'period' => [
+                'year' => $gaji->tahun,
+                'month' => $gaji->bulan,
+                'label' => $periodLabel,
+            ],
+            'amounts' => [
+                'gaji_pokok' => (float) ($gaji->gaji_pokok ?? 0),
+                'tunjangan' => (float) ($gaji->tunjangan ?? 0),
+                'potongan' => (float) ($gaji->potongan ?? 0),
+                'total' => (float) (($gaji->gaji_pokok ?? 0) + ($gaji->tunjangan ?? 0) - ($gaji->potongan ?? 0)),
+            ],
+            'routes' => [
+                'index' => route('gajis.index', ['type' => $gaji->jenis_asn]),
+                'edit' => route('gajis.edit', ['gaji' => $gaji, 'type' => $gaji->jenis_asn]),
+                'destroy' => route('gajis.destroy', ['gaji' => $gaji, 'type' => $gaji->jenis_asn]),
+            ],
+            'confirmations' => [
+                'delete' => 'Apakah Anda yakin ingin menghapus data ini?',
+            ],
+        ];
+
         return view('gajis.show', [
             'gaji' => $gaji,
+            'showProps' => $showProps,
         ]);
     }
 
